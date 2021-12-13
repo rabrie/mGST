@@ -1,7 +1,7 @@
 import numpy as np
 import pygsti
 from pygsti.report import reportables as rptbl
-from pygsti.objects import Label
+from pygsti.baseobjs import Label
 from pygsti.tools import change_basis
 
 
@@ -32,10 +32,10 @@ def pygsti_model_to_arrays(model,basis = 'pp'):
     X = []
     op_Labels = [label for label in model.__dict__['operations'].keys()]
     effect_Labels = [label for label in model['Mdefault'].keys()]
-    E = np.array([model['Mdefault'][label].todense().reshape(-1) for label in effect_Labels])
-    rho = model['rho0'].todense().reshape(-1)
+    E = np.array([model['Mdefault'][label].reshape(-1) for label in effect_Labels])
+    rho = model['rho0'].reshape(-1)
     for op_Label in op_Labels:
-        X.append(model[op_Label].todense().T)
+        X.append(model[op_Label].T)
     if basis == 'pp':
         return np.array(X).astype(np.complex128), E.astype(np.complex128), rho.astype(np.complex128)
     if basis == 'std':
