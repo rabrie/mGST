@@ -35,7 +35,7 @@ def pygsti_model_to_arrays(model,basis = 'pp'):
     E = np.array([model['Mdefault'][label].reshape(-1) for label in effect_Labels])
     rho = model['rho0'].reshape(-1)
     for op_Label in op_Labels:
-        X.append(model[op_Label].T)
+        X.append(model[op_Label])
     if basis == 'pp':
         return np.array(X).astype(np.complex128), E.astype(np.complex128), rho.astype(np.complex128)
     if basis == 'std':
