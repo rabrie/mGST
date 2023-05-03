@@ -117,7 +117,6 @@ def lineobjf_isom_geodesic(a, H, K, E, rho, J, y):
     f(a): float
         Objective function value at new position along the geodesic
     """
-    length = J.shape[1]
     d = K.shape[0]
     pdim = K.shape[2]
     r = pdim**2
@@ -220,8 +219,6 @@ def lineobjf_A_geodesic(a, H, X, A, rho, J, y):
     f(a): float
         Objective function value at new position along the geodesic
     """
-    length = J.shape[1]
-    d = X.shape[0]
     n_povm = A.shape[0]
     A_test = update_A_geodesic(A, H, a)
     E_test = np.array([(A_test[i].T.conj()@A_test[i]).reshape(-1)
@@ -255,8 +252,6 @@ def lineobjf_B_geodesic(a, H, X, E, B, J, y):
     f(a): float
         Objective function value at new position along the geodesic
     """
-    length = J.shape[1]
-    d = X.shape[0]
     B_test = update_B_geodesic(B, H, a)
     rho_test = (B_test@B_test.T.conj()).reshape(-1)
     return objf(X, E, rho_test, J, y)
@@ -296,8 +291,6 @@ def lineobjf_A_B(a, v, delta_v, X, C, y, J, argument):
     This function is used for the line search with linear updates v_new = v + a*delta_v,
     where v can be either the POVM estimate or the state estimate.
     """
-    length = J.shape[1]
-    d = X.shape[0]
     v_test = v - a*delta_v
     if argument == 'rho':
         rho_test = (v_test@v_test.T.conj()).reshape(-1)
