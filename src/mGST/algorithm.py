@@ -2,7 +2,7 @@ import numpy as np
 import numpy.linalg as la
 import time
 from scipy.optimize import minimize
-import matplotlib as plt
+import matplotlib.pyplot as plt
 from scipy.linalg import eigh, eig
 import sys
 from tqdm import tqdm
@@ -58,7 +58,7 @@ def A_SFN_riem_Hess(K, A, B, y, J, length, d, r, rK, n_povm, lam=1e-3):
     Fyy = np.zeros((n_povm, r, n_povm, r)).astype(np.complex128)
 
     X = np.einsum('ijkl,ijnm -> iknlm', K, K.conj()).reshape(d, r, r)
-    dA_, dMdM, dMconjdM, dconjdA = ddA_derivs(X, A, B, J, y, r, pdim)
+    dA_, dMdM, dMconjdM, dconjdA = ddA_derivs(X, A, B, J, y, r, pdim, n_povm)
 
     # Second derivatives
     for i in range(n_povm):
@@ -154,8 +154,7 @@ def B_SFN_riem_Hess(K, A, B, y, J, length, d, r, rK, n_povm, lam=1e-3):
     Fyy = np.zeros((r, r)).astype(np.complex128)
 
     X = np.einsum('ijkl,ijnm -> iknlm', K, K.conj()).reshape(d, r, r)
-    dB_, dMdM, dMconjdM, dconjdB = ddB_derivs(
-        X, K, A, B, J, y, length, d, r, pdim, rK)
+    dB_, dMdM, dMconjdM, dconjdB = ddB_derivs(X, A, B, J, y, r, pdim)
 
     # Second derivatives
     Fyconjy = dMconjdM + dconjdB
@@ -396,8 +395,6 @@ def SFN_riem_Hess_full(K, E, rho, y, J, length, d, r, rK, lam=1e-3, ls='COBYLA')
     K_new : numpy array
         Updated Kraus parametrizations
     """
-
-    # setup
     pdim = int(np.sqrt(r))
     n = rK*pdim
     nt = rK*r
@@ -407,7 +404,7 @@ def SFN_riem_Hess_full(K, E, rho, y, J, length, d, r, rK, lam=1e-3, ls='COBYLA')
     X = np.einsum('ijkl,ijnm -> iknlm', K, K.conj()).reshape(d, r, r)
 
     # compute derivatives
-    dK_, dM10, dM11 = dK_dMdM(X, K, E, rho, J, y, length, d, r, rK)
+    dK_, dM10, dM11 = dK_dMdM(X, K, E, rho, J, y, d, r, rK)
     dd, dconjd = ddM(X, K, E, rho, J, y, d, r, rK)
 
     # Second derivatives
