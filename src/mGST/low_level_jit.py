@@ -41,11 +41,11 @@ def kill_numba_cache():
 
 
 @njit(cache=True)
-def local_basis(x, b, len):
+def local_basis(x, b, length):
     """Convert a base-10 integer to an integer in a specified base with a fixed number of digits.
 
     This function takes an integer `x` in base-10 and converts it to base `b`.
-    The result is returned as an array of length `len` with leading zeros.
+    The result is returned as an array of length `length` with leading zeros.
 
     Parameters
     ----------
@@ -53,16 +53,16 @@ def local_basis(x, b, len):
         The input number in base-10 to be converted.
     b : int
         The target base to convert the input number to.
-    len : int
+    length : int
         The number of output digits in the target base representation.
 
     Returns
     -------
     numpy.ndarray
         A numpy array of integers representing the base-`b` digits of the converted number,
-        with leading zeros if necessary. The length of the array is `len`.
+        with leading zeros if necessary. The length of the array is `length`.
     """
-    r = np.zeros(len).astype(np.int32)
+    r = np.zeros(length).astype(np.int32)
     k = 1
     while x > 0:
         r[-k] = x % b

@@ -13,7 +13,7 @@ from mGST.optimization import (tangent_proj, update_A_geodesic, update_B_geodesi
                                lineobjf_B_geodesic, lineobjf_isom_geodesic)
 
 
-def A_SFN_riem_Hess(K, A, B, y, J, len, d, r, rK, n_povm, lam=1e-3):
+def A_SFN_riem_Hess(K, A, B, y, J, length, d, r, rK, n_povm, lam=1e-3):
     """Riemannian saddle free Newton step on the POVM parametrization
 
     Parameters
@@ -30,7 +30,7 @@ def A_SFN_riem_Hess(K, A, B, y, J, len, d, r, rK, n_povm, lam=1e-3):
         Each column contains the outcome probabilities for a fixed sequence
     J : numpy array
         2D array where each row contains the gate indices of a gate sequence
-    len : int
+    length : int
         Length of the test sequences
     d : int
         Number of different gates in the gate set
@@ -58,8 +58,7 @@ def A_SFN_riem_Hess(K, A, B, y, J, len, d, r, rK, n_povm, lam=1e-3):
     Fyy = np.zeros((n_povm, r, n_povm, r)).astype(np.complex128)
 
     X = np.einsum('ijkl,ijnm -> iknlm', K, K.conj()).reshape(d, r, r)
-    dA_, dMdM, dMconjdM, dconjdA = ddA_derivs(
-        X, K, A, B, J, y, len, d, r, pdim, rK, n_povm)
+    dA_, dMdM, dMconjdM, dconjdA = ddA_derivs(X, A, B, J, y, r, pdim)
 
     # Second derivatives
     for i in range(n_povm):
@@ -109,7 +108,7 @@ def A_SFN_riem_Hess(K, A, B, y, J, len, d, r, rK, n_povm, lam=1e-3):
     return A_new
 
 
-def B_SFN_riem_Hess(K, A, B, y, J, len, d, r, rK, n_povm, lam=1e-3):
+def B_SFN_riem_Hess(K, A, B, y, J, length, d, r, rK, n_povm, lam=1e-3):
     """Riemannian saddle free Newton step on the initial state parametrization
 
     Parameters
@@ -126,7 +125,7 @@ def B_SFN_riem_Hess(K, A, B, y, J, len, d, r, rK, n_povm, lam=1e-3):
         Each column contains the outcome probabilities for a fixed sequence
     J : numpy array
         2D array where each row contains the gate indices of a gate sequence
-    len : int
+    length : int
         Length of the test sequences
     d : int
         Number of different gates in the gate set
@@ -156,7 +155,7 @@ def B_SFN_riem_Hess(K, A, B, y, J, len, d, r, rK, n_povm, lam=1e-3):
 
     X = np.einsum('ijkl,ijnm -> iknlm', K, K.conj()).reshape(d, r, r)
     dB_, dMdM, dMconjdM, dconjdB = ddB_derivs(
-        X, K, A, B, J, y, len, d, r, pdim, rK)
+        X, K, A, B, J, y, length, d, r, pdim, rK)
 
     # Second derivatives
     Fyconjy = dMconjdM + dconjdB
@@ -204,7 +203,7 @@ def B_SFN_riem_Hess(K, A, B, y, J, len, d, r, rK, n_povm, lam=1e-3):
     return B_new
 
 
-def gd(K, E, rho, y, J, len, d, r, rK, ls='COBYLA'):
+def gd(K, E, rho, y, J, length, d, r, rK, ls='COBYLA'):
     """Do Riemannian gradient descent optimization step on gates
 
     Parameters
@@ -221,7 +220,7 @@ def gd(K, E, rho, y, J, len, d, r, rK, ls='COBYLA'):
         Each column contains the outcome probabilities for a fixed sequence
     J : numpy array
         2D array where each row contains the gate indices of a gate sequence
-    len : int
+    length : int
         Length of the test sequences
     d : int
         Number of different gates in the gate set
@@ -247,7 +246,7 @@ def gd(K, E, rho, y, J, len, d, r, rK, ls='COBYLA'):
     Delta = np.zeros((d, n, pdim)).astype(np.complex128)
     X = np.einsum('ijkl,ijnm -> iknlm', K, K.conj()).reshape(d, r, r)
 
-    dK_ = dK(X, K, E, rho, J, y, len, d, r, rK)
+    dK_ = dK(X, K, E, rho, J, y, d, r, rK)
     for k in range(d):
         # derivative
         Fy = dK_[k].reshape(n, pdim)
@@ -262,7 +261,7 @@ def gd(K, E, rho, y, J, len, d, r, rK, ls='COBYLA'):
     return K_new
 
 
-def SFN_riem_Hess(K, E, rho, y, J, len, d, r, rK, lam=1e-3, ls='COBYLA'):
+def SFN_riem_Hess(K, E, rho, y, J, length, d, r, rK, lam=1e-3, ls='COBYLA'):
     """Riemannian saddle free Newton step on each gate individually
 
     Parameters
@@ -279,7 +278,7 @@ def SFN_riem_Hess(K, E, rho, y, J, len, d, r, rK, lam=1e-3, ls='COBYLA'):
         Each column contains the outcome probabilities for a fixed sequence
     J : numpy array
         2D array where each row contains the gate indices of a gate sequence
-    len : int
+    length : int
         Length of the test sequences
     d : int
         Number of different gates in the gate set
@@ -307,8 +306,8 @@ def SFN_riem_Hess(K, E, rho, y, J, len, d, r, rK, lam=1e-3, ls='COBYLA'):
     X = np.einsum('ijkl,ijnm -> iknlm', K, K.conj()).reshape(d, r, r)
 
     # compute derivatives
-    dK_, dM10, dM11 = dK_dMdM(X, K, E, rho, J, y, len, d, r, rK)
-    dd, dconjd = ddM(X, K, E, rho, J, y, len, d, r, rK)
+    dK_, dM10, dM11 = dK_dMdM(X, K, E, rho, J, y, d, r, rK)
+    dd, dconjd = ddM(X, K, E, rho, J, y, d, r, rK)
 
     # Second derivatives
     Fyconjy = dM11.reshape(
@@ -362,7 +361,7 @@ def SFN_riem_Hess(K, E, rho, y, J, len, d, r, rK, lam=1e-3, ls='COBYLA'):
     return K_new
 
 
-def SFN_riem_Hess_full(K, E, rho, y, J, len, d, r, rK, lam=1e-3, ls='COBYLA'):
+def SFN_riem_Hess_full(K, E, rho, y, J, length, d, r, rK, lam=1e-3, ls='COBYLA'):
     """Riemannian saddle free Newton step on product manifold of all gates
 
     Parameters
@@ -379,7 +378,7 @@ def SFN_riem_Hess_full(K, E, rho, y, J, len, d, r, rK, lam=1e-3, ls='COBYLA'):
         Each column contains the outcome probabilities for a fixed sequence
     J : numpy array
         2D array where each row contains the gate indices of a gate sequence
-    len : int
+    length : int
         Length of the test sequences
     d : int
         Number of different gates in the gate set
@@ -408,8 +407,8 @@ def SFN_riem_Hess_full(K, E, rho, y, J, len, d, r, rK, lam=1e-3, ls='COBYLA'):
     X = np.einsum('ijkl,ijnm -> iknlm', K, K.conj()).reshape(d, r, r)
 
     # compute derivatives
-    dK_, dM10, dM11 = dK_dMdM(X, K, E, rho, J, y, len, d, r, rK)
-    dd, dconjd = ddM(X, K, E, rho, J, y, len, d, r, rK)
+    dK_, dM10, dM11 = dK_dMdM(X, K, E, rho, J, y, length, d, r, rK)
+    dd, dconjd = ddM(X, K, E, rho, J, y, d, r, rK)
 
     # Second derivatives
     Fyconjy = dM11.reshape(
@@ -474,7 +473,7 @@ def SFN_riem_Hess_full(K, E, rho, y, J, len, d, r, rK, lam=1e-3, ls='COBYLA'):
     return K_new
 
 
-def optimize(y, J, len, d, r, rK, n_povm, method, K, rho, A, B):
+def optimize(y, J, length, d, r, rK, n_povm, method, K, rho, A, B):
     """Full gate set optimization update alternating on E, K and rho
 
     Parameters
@@ -484,7 +483,7 @@ def optimize(y, J, len, d, r, rK, n_povm, method, K, rho, A, B):
         Each column contains the outcome probabilities for a fixed sequence
     J : numpy array
         2D array where each row contains the gate indices of a gate sequence
-    len : int
+    length : int
         Length of the test sequences
     d : int
         Number of different gates in the gate set
@@ -522,13 +521,13 @@ def optimize(y, J, len, d, r, rK, n_povm, method, K, rho, A, B):
     B_new : numpy array
         Updated initial state parametrization
     """
-    A_new = A_SFN_riem_Hess(K, A, B, y, J, len, d, r, rK, n_povm)
+    A_new = A_SFN_riem_Hess(K, A, B, y, J, length, d, r, rK, n_povm)
     E_new = np.array([(A_new[i].T.conj()@A_new[i]).reshape(-1) for i in range(n_povm)])
     if method == 'SFN':
-        K_new = SFN_riem_Hess_full(K, E_new, rho, y, J, len, d, r, rK, lam=1e-3, ls='COBYLA')
+        K_new = SFN_riem_Hess_full(K, E_new, rho, y, J, length, d, r, rK, lam=1e-3, ls='COBYLA')
     elif method == 'GD':
-        K_new = gd(K, E_new, rho, y, J, len, d, r, rK, ls='COBYLA')
-    B_new = B_SFN_riem_Hess(K_new, A_new, B, y, J, len, d, r, rK, n_povm, lam=1e-3)
+        K_new = gd(K, E_new, rho, y, J, length, d, r, rK, ls='COBYLA')
+    B_new = B_SFN_riem_Hess(K_new, A_new, B, y, J, length, d, r, rK, n_povm, lam=1e-3)
     rho_new = (B_new@B_new.T.conj()).reshape(-1)
     X_new = np.einsum('ijkl,ijnm -> iknlm', K_new, K_new.conj()).reshape(d, r, r)
     return K_new, X_new, E_new, rho_new, A_new, B_new
@@ -546,7 +545,7 @@ def run_mGST(*args, method='SFN', max_inits=10,
         Each column contains the outcome probabilities for a fixed sequence
     J : numpy array
         2D array where each row contains the gate indices of a gate sequence
-    l : int
+    length : int
         Length of the test sequences
     d : int
         Number of different gates in the gate set
@@ -587,7 +586,7 @@ def run_mGST(*args, method='SFN', max_inits=10,
     res_list : list
         Collected objective function values after each iteration
     """
-    y, J, l, d, r, rK, n_povm, bsize, meas_samples = args
+    y, J, length, d, r, rK, n_povm, bsize, meas_samples = args
     t0 = time.time()
     pdim = int(np.sqrt(r))
     # stopping criterion (Faktor 3 can be increased if model mismatch is high)
@@ -611,12 +610,12 @@ def run_mGST(*args, method='SFN', max_inits=10,
             A = np.array([la.cholesky(E[k].reshape(pdim, pdim)+1e-14*np.eye(pdim)).T.conj()
                           for k in range(n_povm)])
             B = la.cholesky(rho.reshape(pdim, pdim))
-            res_list = [objf(X, E, rho, J, y, d, l)]
+            res_list = [objf(X, E, rho, J, y)]
             for j in tqdm(range(max_iter), file=sys.stdout):
                 yb, Jb = batch(y, J, bsize)
                 K, X, E, rho, A, B = optimize(
-                    yb, Jb, l, d, r, rK, n_povm, method, K, rho, A, B)
-                res_list.append(objf(X, E, rho, J, y, d, l))
+                    yb, Jb, length, d, r, rK, n_povm, method, K, rho, A, B)
+                res_list.append(objf(X, E, rho, J, y))
                 if res_list[-1] < delta:
                     success = 1
                     break
@@ -641,7 +640,7 @@ def run_mGST(*args, method='SFN', max_inits=10,
         for j in tqdm(range(max_iter), file=sys.stdout):
             yb, Jb = batch(y, J, bsize)
             K, X, E, rho, A, B = optimize(
-                yb, Jb, l, d, r, rK, n_povm, method, K, rho, A, B)
+                yb, Jb, length, d, r, rK, n_povm, method, K, rho, A, B)
             res_list.append(objf(X, E, rho, J, y))
             if res_list[-1] < delta:
                 success = 1
@@ -652,7 +651,7 @@ def run_mGST(*args, method='SFN', max_inits=10,
             print(
                 'Success threshold not reached, attempting optimization over full data set...')
     for n in tqdm(range(final_iter), file=sys.stdout):
-        K, X, E, rho, A, B = optimize(y, J, l, d, r, rK, n_povm, method, K, rho, A, B)
+        K, X, E, rho, A, B = optimize(y, J, length, d, r, rK, n_povm, method, K, rho, A, B)
         res_list.append(objf(X, E, rho, J, y))
         if np.abs(res_list[-2]-res_list[-1]) < delta*target_rel_prec:
             break

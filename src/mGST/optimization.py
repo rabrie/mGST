@@ -117,15 +117,14 @@ def lineobjf_isom_geodesic(a, H, K, E, rho, J, y):
     f(a): float
         Objective function value at new position along the geodesic
     """
-
-    len = J.shape[1]
+    length = J.shape[1]
     d = K.shape[0]
     pdim = K.shape[2]
     r = pdim**2
     K_test = update_K_geodesic(K, H, a)
     X_test = np.einsum('ijkl,ijnm -> iknlm', K_test,
                        K_test.conj()).reshape(d, r, r)
-    return objf(X_test, E, rho, J, y, d, len)
+    return objf(X_test, E, rho, J, y)
 
 
 def update_A_geodesic(A, H, a):
@@ -221,14 +220,13 @@ def lineobjf_A_geodesic(a, H, X, A, rho, J, y):
     f(a): float
         Objective function value at new position along the geodesic
     """
-
-    len = J.shape[1]
+    length = J.shape[1]
     d = X.shape[0]
     n_povm = A.shape[0]
     A_test = update_A_geodesic(A, H, a)
     E_test = np.array([(A_test[i].T.conj()@A_test[i]).reshape(-1)
                       for i in range(n_povm)])
-    return objf(X, E_test, rho, J, y, d, len)
+    return objf(X, E_test, rho, J, y)
 
 
 def lineobjf_B_geodesic(a, H, X, E, B, J, y):
@@ -257,12 +255,11 @@ def lineobjf_B_geodesic(a, H, X, E, B, J, y):
     f(a): float
         Objective function value at new position along the geodesic
     """
-
-    len = J.shape[1]
+    length = J.shape[1]
     d = X.shape[0]
     B_test = update_B_geodesic(B, H, a)
     rho_test = (B_test@B_test.T.conj()).reshape(-1)
-    return objf(X, E, rho_test, J, y, d, len)
+    return objf(X, E, rho_test, J, y)
 
 
 def lineobjf_A_B(a, v, delta_v, X, C, y, J, argument):
@@ -299,15 +296,15 @@ def lineobjf_A_B(a, v, delta_v, X, C, y, J, argument):
     This function is used for the line search with linear updates v_new = v + a*delta_v,
     where v can be either the POVM estimate or the state estimate.
     """
-    len = J.shape[1]
+    length = J.shape[1]
     d = X.shape[0]
     v_test = v - a*delta_v
     if argument == 'rho':
         rho_test = (v_test@v_test.T.conj()).reshape(-1)
-        return objf(X, C, rho_test, J, y, d, len)
+        return objf(X, C, rho_test, J, y)
     elif argument == 'E':
         E_test = (v_test@v_test.T.conj()).reshape(-1)
-        return objf(X, E_test, C, J, y, d, len)
+        return objf(X, E_test, C, J, y)
 
 
 def Hess_evals(K, E, rho, y, J):
@@ -332,7 +329,6 @@ def Hess_evals(K, E, rho, y, J):
     evals: 1D numpy array
         Eigenvalues of the euclidean Hessian for the Kraus operators at position (K,E,rho)
     """
-    len = J.shape[1]
     d = K.shape[0]
     rK = K.shape[1]
     pdim = K.shape[2]
@@ -340,8 +336,8 @@ def Hess_evals(K, E, rho, y, J):
     n = d*rK*r
     H = np.zeros((2*n, 2*n)).astype(np.complex128)
     X = np.einsum('ijkl,ijnm -> iknlm', K, K.conj()).reshape(d, r, r)
-    dM10, dM11 = dMdM(X, K, E, rho, J, y, len, d, r, rK)
-    dd, dconjd = ddM(X, K, E, rho, J, y, len, d, r, rK)
+    dM10, dM11 = dMdM(X, K, E, rho, J, y, d, r, rK)
+    dd, dconjd = ddM(X, K, E, rho, J, y, d, r, rK)
 
     A00 = dM11.reshape(n, n) + \
         np.einsum('ijklmnop->ikmojlnp', dconjd).reshape(n, n)

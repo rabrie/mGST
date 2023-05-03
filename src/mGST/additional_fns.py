@@ -441,7 +441,7 @@ def F_avg_X(X, K):
     return np.average(np.real(Fid_list)), np.real(Fid_list)
 
 
-def MVE(X_true, E_true, rho_true, X, E, rho, d, len, n_povm, samples=10000):
+def MVE(X_true, E_true, rho_true, X, E, rho, d, length, n_povm, samples=10000):
     """Mean varation error between the outputs of two gate sets on random sequences
 
     Parameters
@@ -460,7 +460,7 @@ def MVE(X_true, E_true, rho_true, X, E, rho, d, len, n_povm, samples=10000):
         Current initial state estimate
     d : int
         Number of different gates in the gate set
-    len : int
+    length : int
         Length of the test sequences
     n_povm : int
         Number of POVM elements
@@ -478,14 +478,14 @@ def MVE(X_true, E_true, rho_true, X, E, rho, d, len, n_povm, samples=10000):
         over the POVM elements is computed. Afterwards the meean over these total
         variation errors is returned.
     """
-    if samples == 'all' or np.log(samples)/np.log(d) > len:
-        J = np.random.randint(0, d, len*d**len).reshape(d**len, len)
+    if samples == 'all' or np.log(samples)/np.log(d) > length:
+        J = np.random.randint(0, d, length*d**length).reshape(d**length, length)
     else:
-        J = np.random.randint(0, d, len*samples).reshape(samples, len)
-    return MVE_lower(X_true, E_true, rho_true, X, E, rho, J, d, len, n_povm)
+        J = np.random.randint(0, d, length*samples).reshape(samples, length)
+    return MVE_lower(X_true, E_true, rho_true, X, E, rho, J, n_povm)
 
 
-def Mp_norm(X_true, E_true, rho_true, X, E, rho, d, len, n_povm, p, samples=10000):
+def Mp_norm(X_true, E_true, rho_true, X, E, rho, d, length, n_povm, p, samples=10000):
     """Mean of the p-norm deviation between the outputs of two gate sets on random sequences
 
     Parameters
@@ -504,7 +504,7 @@ def Mp_norm(X_true, E_true, rho_true, X, E, rho, d, len, n_povm, p, samples=1000
         Current initial state estimate
     d : int
         Number of different gates in the gate set
-    len : int
+    length : int
         Length of the test sequences
     n_povm : int
         Number of POVM elements
@@ -525,11 +525,11 @@ def Mp_norm(X_true, E_true, rho_true, X, E, rho, d, len, n_povm, p, samples=1000
         variation errors is returned.
 
     """
-    if samples == 'all' or np.log(samples)/np.log(d) > len:
-        J = np.random.randint(0, d, len*d**len).reshape(d**len, len)
+    if samples == 'all' or np.log(samples)/np.log(d) > length:
+        J = np.random.randint(0, d, length*d**length).reshape(d**length, length)
     else:
-        J = np.random.randint(0, d, len*samples).reshape(samples, len)
-    return Mp_norm_lower(X_true, E_true, rho_true, X, E, rho, J, d, len, n_povm, p)
+        J = np.random.randint(0, d, length*samples).reshape(samples, length)
+    return Mp_norm_lower(X_true, E_true, rho_true, X, E, rho, J, n_povm, p)
 
 
 def Kraus_rep(X, d, pdim, rK):
@@ -645,14 +645,14 @@ def random_len_seq(d, max_l, N):
     return np.array(J)
 
 
-def generate_fids(d, len, m_f):
+def generate_fids(d, length, m_f):
     """Generate random fiducial sequencecs
 
     Parameters
     ----------
     d : int
         Number of gates
-    len : int
+    length : int
         Total sequence length
     m_f : int
         Number of random fiducial sequences
@@ -667,11 +667,11 @@ def generate_fids(d, len, m_f):
         Sequence list for all combinations of fiducials seuqneces with a gate
         in between: fiducial1 -- gate -- fiducial2
     """
-    fid_len = (len-1)//2
-    fid = random.sample(range(d**fid_len), m_f).copy()
-    J_fid = [list(local_basis(ind, d, fid_len)) for ind in fid]
+    fid_length = (length-1)//2
+    fid = random.sample(range(d**fid_length), m_f).copy()
+    J_fid = [list(local_basis(ind, d, fid_length)) for ind in fid]
     J_fid2 = np.array([seqL+seqR for seqL in J_fid for seqR in J_fid])
-    J_meas = np.zeros((d, m_f**2, len), dtype='int')
+    J_meas = np.zeros((d, m_f**2, length), dtype='int')
     for k in range(d):
         J_meas[k] = np.array(
             [seqL+[k]+seqR for seqL in J_fid for seqR in J_fid])
