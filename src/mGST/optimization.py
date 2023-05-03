@@ -1,6 +1,6 @@
 import numpy as np
-from low_level_jit import ddM, objf
 from scipy.linalg import eigh
+from mGST.low_level_jit import ddM, objf
 
 
 def eigy_expm(A):

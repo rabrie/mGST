@@ -3,7 +3,7 @@ import warnings
 import numpy as np
 import numpy.linalg as la
 from scipy.linalg import qr, expm
-from low_level_jit import local_basis, MVE_lower, Mp_norm_lower
+from mGST.low_level_jit import local_basis, MVE_lower, Mp_norm_lower
 
 
 def transp(dim1, dim2):

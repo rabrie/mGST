@@ -1,16 +1,16 @@
 import numpy as np
 import numpy.linalg as la
 import time
-from low_level_jit import objf, ddA_derivs, ddB_derivs, dK, dK_dMdM, ddM
-from additional_fns import transp, random_gs, batch
-from optimization import (tangent_proj, update_A_geodesic, update_B_geodesic,
-                          update_K_geodesic, lineobjf_A_geodesic,
-                          lineobjf_B_geodesic, lineobjf_isom_geodesic)
 from scipy.optimize import minimize
 import matplotlib as plt
 from scipy.linalg import eigh, eig
 import sys
 from tqdm import tqdm
+from mGST.low_level_jit import objf, ddA_derivs, ddB_derivs, dK, dK_dMdM, ddM
+from mGST.additional_fns import transp, random_gs, batch
+from mGST.optimization import (tangent_proj, update_A_geodesic, update_B_geodesic,
+                               update_K_geodesic, lineobjf_A_geodesic,
+                               lineobjf_B_geodesic, lineobjf_isom_geodesic)
 
 
 def A_SFN_riem_Hess(K, A, B, y, J, len, d, r, rK, n_povm, lam=1e-3):
@@ -42,7 +42,6 @@ def A_SFN_riem_Hess(K, A, B, y, J, len, d, r, rK, n_povm, lam=1e-3):
         Number of POVM-Elements
     lam : float
         Damping parameter for dampled Newton method; Default: 1e-3
-    }
 
     Returns
     -------
@@ -139,7 +138,6 @@ def B_SFN_riem_Hess(K, A, B, y, J, len, d, r, rK, n_povm, lam=1e-3):
         Number of POVM-Elements
     lam : float
         Damping parameter for dampled Newton method; Default: 1e-3
-    }
 
     Returns
     -------
@@ -233,7 +231,6 @@ def gd(K, E, rho, y, J, len, d, r, rK, ls='COBYLA'):
         Target Kraus rank
     ls : {"COBYLA", ...}
         Line search method, takes "method" arguments of scipy.optimize.minimize
-    }
 
     Returns
     -------
@@ -294,7 +291,6 @@ def SFN_riem_Hess(K, E, rho, y, J, len, d, r, rK, lam=1e-3, ls='COBYLA'):
         Damping parameter for dampled Newton method; Default: 1e-3
     ls : {"COBYLA", ...}
         Line search method, takes "method" arguments of scipy.optimize.minimize
-    }
 
     Returns
     -------
@@ -395,7 +391,6 @@ def SFN_riem_Hess_full(K, E, rho, y, J, len, d, r, rK, lam=1e-3, ls='COBYLA'):
         Damping parameter for dampled Newton method; Default: 1e-3
     ls : {"COBYLA", ...}
         Line search method, takes "method" arguments of scipy.optimize.minimize
-    }
 
     Returns
     -------
@@ -479,7 +474,7 @@ def SFN_riem_Hess_full(K, E, rho, y, J, len, d, r, rK, lam=1e-3, ls='COBYLA'):
     return K_new
 
 
-def optimize(y, J, len, d, r, rK, n_povm, method, K, E, rho, A, B):
+def optimize(y, J, len, d, r, rK, n_povm, method, K, rho, A, B):
     """Full gate set optimization update alternating on E, K and rho
 
     Parameters
@@ -511,7 +506,6 @@ def optimize(y, J, len, d, r, rK, n_povm, method, K, E, rho, A, B):
         Current POVM parametrization
     B : numpy array
         Current initial state parametrization
-    }
 
     Returns
     -------
@@ -529,18 +523,14 @@ def optimize(y, J, len, d, r, rK, n_povm, method, K, E, rho, A, B):
         Updated initial state parametrization
     """
     A_new = A_SFN_riem_Hess(K, A, B, y, J, len, d, r, rK, n_povm)
-    E_new = np.array([(A_new[i].T.conj()@A_new[i]).reshape(-1)
-                     for i in range(n_povm)])
+    E_new = np.array([(A_new[i].T.conj()@A_new[i]).reshape(-1) for i in range(n_povm)])
     if method == 'SFN':
-        K_new = SFN_riem_Hess_full(
-            K, E_new, rho, y, J, len, d, r, rK, lam=1e-3, ls='COBYLA')
+        K_new = SFN_riem_Hess_full(K, E_new, rho, y, J, len, d, r, rK, lam=1e-3, ls='COBYLA')
     elif method == 'GD':
         K_new = gd(K, E_new, rho, y, J, len, d, r, rK, ls='COBYLA')
-    B_new = B_SFN_riem_Hess(K_new, A_new, B, y, J, len,
-                            d, r, rK, n_povm, lam=1e-3)
+    B_new = B_SFN_riem_Hess(K_new, A_new, B, y, J, len, d, r, rK, n_povm, lam=1e-3)
     rho_new = (B_new@B_new.T.conj()).reshape(-1)
-    X_new = np.einsum('ijkl,ijnm -> iknlm', K_new,
-                      K_new.conj()).reshape(d, r, r)
+    X_new = np.einsum('ijkl,ijnm -> iknlm', K_new, K_new.conj()).reshape(d, r, r)
     return K_new, X_new, E_new, rho_new, A_new, B_new
 
 
@@ -601,8 +591,7 @@ def run_mGST(*args, method='SFN', max_inits=10,
     t0 = time.time()
     pdim = int(np.sqrt(r))
     # stopping criterion (Faktor 3 can be increased if model mismatch is high)
-    delta = threshold_multiplyer * \
-        (1-y.reshape(-1))@y.reshape(-1)/len(J)/n_povm/meas_samples
+    delta = threshold_multiplyer * (1-y.reshape(-1))@y.reshape(-1)/len(J)/n_povm/meas_samples
 
     if init:
         K = init[0]
@@ -626,7 +615,7 @@ def run_mGST(*args, method='SFN', max_inits=10,
             for j in tqdm(range(max_iter), file=sys.stdout):
                 yb, Jb = batch(y, J, bsize)
                 K, X, E, rho, A, B = optimize(
-                    yb, Jb, l, d, r, rK, n_povm, method, K, E, rho, A, B)
+                    yb, Jb, l, d, r, rK, n_povm, method, K, rho, A, B)
                 res_list.append(objf(X, E, rho, J, y, d, l))
                 if res_list[-1] < delta:
                     success = 1
@@ -646,14 +635,13 @@ def run_mGST(*args, method='SFN', max_inits=10,
             else:
                 print('Maximum number of reinitializations reached without reaching success',
                       'threshold attempting optimization over full data set...')
-    # X, E, rho, J, y
     else:
         i = 0
         res_list = [objf(X, E, rho, J, y)]
         for j in tqdm(range(max_iter), file=sys.stdout):
             yb, Jb = batch(y, J, bsize)
             K, X, E, rho, A, B = optimize(
-                yb, Jb, l, d, r, rK, n_povm, method, K, E, rho, A, B)
+                yb, Jb, l, d, r, rK, n_povm, method, K, rho, A, B)
             res_list.append(objf(X, E, rho, J, y))
             if res_list[-1] < delta:
                 success = 1
@@ -664,8 +652,7 @@ def run_mGST(*args, method='SFN', max_inits=10,
             print(
                 'Success threshold not reached, attempting optimization over full data set...')
     for n in tqdm(range(final_iter), file=sys.stdout):
-        K, X, E, rho, A, B = optimize(y, J, l, d, r, rK,
-                                      n_povm, method, K, E, rho, A, B)
+        K, X, E, rho, A, B = optimize(y, J, l, d, r, rK, n_povm, method, K, rho, A, B)
         res_list.append(objf(X, E, rho, J, y))
         if np.abs(res_list[-2]-res_list[-1]) < delta*target_rel_prec:
             break
