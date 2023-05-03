@@ -353,7 +353,7 @@ def dK_dMdM(X, K, E, rho, J, y, d, r, rK):
     return dK.reshape(d, rK, pdim, pdim)*2/m/n_povm, 2*dM10/m/n_povm, 2*dM11/m/n_povm
 
 
-@njit(cache=True, parallel=True)
+@njit(cache=True, parallel=False)
 def ddM(X, K, E, rho, J, y, d, r, rK):
     """Compute the second derivative of the objective function with respect to matrix elements.
 
@@ -414,11 +414,9 @@ def ddM(X, K, E, rho, J, y, d, r, rK):
                                 if i1 == i2:
                                     D_ind = L@X[k1]@R-y[o, n]
                                 elif i1 < i2:
-                                    D_ind = L@X[k1]@C.reshape(r,
-                                                              r)@X[k2]@R-y[o, n]
+                                    D_ind = L@X[k1]@C.reshape(r, r)@X[k2]@R-y[o, n]
                                 elif i1 > i2:
-                                    D_ind = L@X[k2]@C.reshape(r,
-                                                              r)@X[k1]@R-y[o, n]
+                                    D_ind = L@X[k2]@C.reshape(r, r)@X[k1]@R-y[o, n]
 
                                 ddK_loc = np.zeros(
                                     (rK**2, r, r)).astype(np.complex128)
