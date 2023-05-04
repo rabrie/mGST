@@ -96,7 +96,14 @@ def A_SFN_riem_Hess(K, A, B, y, J, length, d, r, rK, n_povm, lam=1e-3):
     # saddle free newton method
     H = (H + H.T.conj())/2
     evals, U = eigh(H)
-    H_abs_inv = U@np.diag(1/(np.abs(evals) + lam))@U.T.conj()
+    
+    #Disregarding gauge directions (zero eigenvalues of the Hessian)
+    inv_diag = evals.copy()
+    inv_diag[np.abs(evals)<1e-14] = 1
+    inv_diag[np.abs(evals)>1e-14] = np.abs(inv_diag[np.abs(evals)>1e-14]) + lam
+    H_abs_inv = U@np.diag(1/inv_diag)@U.T.conj()    
+    
+    #H_abs_inv = U@np.diag(1/(np.abs(evals) + lam))@U.T.conj() # Damping all eigenvalues
 
     Delta_A = ((H_abs_inv@G)[:nt]).reshape(n, pdim)
 
@@ -189,7 +196,14 @@ def B_SFN_riem_Hess(K, A, B, y, J, length, d, r, rK, n_povm, lam=1e-3):
     # saddle free newton method
     H = (H + H.T.conj())/2
     evals, U = eigh(H)
-    H_abs_inv = U@np.diag(1/(np.abs(evals) + lam))@U.T.conj()
+    
+    #Disregarding gauge directions (zero eigenvalues of the Hessian)
+    inv_diag = evals.copy()
+    inv_diag[np.abs(evals)<1e-14] = 1
+    inv_diag[np.abs(evals)>1e-14] = np.abs(inv_diag[np.abs(evals)>1e-14]) + lam
+    H_abs_inv = U@np.diag(1/inv_diag)@U.T.conj()    
+    
+    #H_abs_inv = U@np.diag(1/(np.abs(evals) + lam))@U.T.conj() # Damping all eigenvalues
 
     Delta = (H_abs_inv@G)[:nt]
     Delta = Delta - Y*(Y.T.conj()@Delta+Delta.T.conj()@Y) / \
@@ -457,7 +471,15 @@ def SFN_riem_Hess_full(K, E, rho, y, J, length, d, r, rK, lam=1e-3, ls='COBYLA')
     # application of saddle free newton method
     H = (H + H.T.conj())/2
     evals, U = eigh(H)
-    H_abs_inv = U@np.diag(1/(np.abs(evals) + lam))@U.T.conj()
+    
+    #Disregarding gauge directions (zero eigenvalues of the Hessian)
+    inv_diag = evals.copy()
+    inv_diag[np.abs(evals)<1e-14] = 1
+    inv_diag[np.abs(evals)>1e-14] = np.abs(inv_diag[np.abs(evals)>1e-14]) + lam
+    H_abs_inv = U@np.diag(1/inv_diag)@U.T.conj()    
+
+    #H_abs_inv = U@np.diag(1/(np.abs(evals) + lam))@U.T.conj() # Damping all eigenvalues
+    
     Delta_K = ((H_abs_inv@G.reshape(-1))[:d*nt]).reshape(d, rK, pdim, pdim)
 
     # Delta_K is already in tangent space but not to sufficient numerical accuracy
@@ -583,82 +605,97 @@ def run_mGST(*args, method='SFN', max_inits=10,
     res_list : list
         Collected objective function values after each iteration
     """
-    y, J, length, d, r, rK, n_povm, bsize, meas_samples = args
+    y,J,length,d,r,rK,n_povm, bsize, meas_samples = args
     t0 = time.time()
     pdim = int(np.sqrt(r))
-    # stopping criterion (Faktor 3 can be increased if model mismatch is high)
-    delta = threshold_multiplyer * (1-y.reshape(-1))@y.reshape(-1)/len(J)/n_povm/meas_samples
-
+    #stopping criterion (Faktor 3 can be increased if model mismatch is high)
+    delta = threshold_multiplyer*(1-y.reshape(-1))@y.reshape(-1)/len(J)/n_povm/meas_samples 
+    
     if init:
         K = init[0]
-        E = init[1]
-        # offset small negative eigenvalues for stability
+        E = init[1] 
+        #offset small negative eigenvalues for stability
         rho = init[2]+1e-14*np.eye(pdim).reshape(-1)
-        A = np.array([la.cholesky(E[k].reshape(pdim, pdim)+1e-14*np.eye(pdim)).T.conj()
-                      for k in range(n_povm)])
+        A = np.array([la.cholesky(E[k].reshape(pdim,pdim)+1e-14*np.eye(pdim)).T.conj()
+                      for k in range(n_povm)]) 
         B = la.cholesky(rho.reshape(pdim, pdim))
-        X = np.einsum('ijkl,ijnm -> iknlm', K, K.conj()).reshape(d, r, r)
+        X = np.einsum('ijkl,ijnm -> iknlm', K, K.conj()).reshape(d, r, r)   
+        max_reruns = 1
 
     success = 0
     print('Starting optimization...')
     if not init:
         for i in range(max_inits):
             K, X, E, rho = random_gs(d, r, rK, n_povm)
-            A = np.array([la.cholesky(E[k].reshape(pdim, pdim)+1e-14*np.eye(pdim)).T.conj()
-                          for k in range(n_povm)])
-            B = la.cholesky(rho.reshape(pdim, pdim))
-            res_list = [objf(X, E, rho, J, y)]
+            A = np.array([la.cholesky(E[k].reshape(pdim,pdim)+1e-14*np.eye(pdim)).T.conj()
+                      for k in range(n_povm)]) 
+            B = la.cholesky(rho.reshape(pdim,pdim))
+            res_list = [objf(X,E,rho,J,y)]
             for j in tqdm(range(max_iter), file=sys.stdout):
-                yb, Jb = batch(y, J, bsize)
+                yb,Jb = batch(y, J, bsize)
                 K, X, E, rho, A, B = optimize(
                     yb, Jb, length, d, r, rK, n_povm, method, K, rho, A, B)
-                res_list.append(objf(X, E, rho, J, y))
+                res_list.append(objf(X, E, rho, J, y)) 
                 if res_list[-1] < delta:
                     success = 1
-                    break
+                    break  
             if testing:
                 plt.semilogy(res_list)
-                plt.ylabel('Objective function')
+                plt.ylabel('Objective function for batch optimization')
                 plt.xlabel('Iterations')
-                plt.axhline(delta, color="green", label="conv. threshold")
+                plt.axhline(delta, color = "green", label = "conv. threshold")
                 plt.legend()
                 plt.show()
             if success == 1:
                 print('Initialization successful, improving estimate over full data....')
-                break
+                break 
             if i+1 < max_inits:
                 print('Run ', i, 'failed, trying new initialization...')
             else:
                 print('Maximum number of reinitializations reached without reaching success',
-                      'threshold attempting optimization over full data set...')
+                      'threshold, attempting optimization over full data set...')
     else:
-        i = 0
-        res_list = [objf(X, E, rho, J, y)]
+        i=0
+        res_list = [objf(X,E,rho,J,y)]
         for j in tqdm(range(max_iter), file=sys.stdout):
             yb, Jb = batch(y, J, bsize)
-            K, X, E, rho, A, B = optimize(
-                yb, Jb, length, d, r, rK, n_povm, method, K, rho, A, B)
-            res_list.append(objf(X, E, rho, J, y))
+            K, X, E, rho, A, B = optimize(yb, Jb, length, d, r, rK, n_povm, method, K, rho, A, B)
+            res_list.append(objf(X ,E, rho, J, y)) 
             if res_list[-1] < delta:
                 success = 1
                 break
+        if testing:
+            plt.semilogy(res_list)
+            plt.ylabel('Objective function over batches and full data')
+            plt.xlabel('Iterations')
+            plt.axhline(delta, color = "green", label = "conv. threshold")
+            plt.legend()
+            plt.show()
         if success == 1:
             print('Optimization successful, improving estimate over full data....')
-        else:
-            print(
-                'Success threshold not reached, attempting optimization over full data set...')
+        else: 
+            print('Success threshold not reached, attempting optimization over full data set...')
     for n in tqdm(range(final_iter), file=sys.stdout):
         K, X, E, rho, A, B = optimize(y, J, length, d, r, rK, n_povm, method, K, rho, A, B)
         res_list.append(objf(X, E, rho, J, y))
-        if np.abs(res_list[-2]-res_list[-1]) < delta*target_rel_prec:
+        if np.abs(res_list[-2]-res_list[-1])<delta*target_rel_prec:
             break
+    if testing:
+        plt.semilogy(res_list)
+        plt.ylabel('Objective function over batches and full data')
+        plt.xlabel('Iterations')
+        plt.axhline(delta, color = "green", label = "conv. threshold")
+        plt.legend()
+        plt.show()
     print('#################')
     if success == 1 or (res_list[-1] < delta):
         print('\t Convergence criterion satisfied')
-    else:
+    else: 
         print('\t Convergence criterion not satisfied,',
               'try increasing max_iter or using new initializations.')
-    print('\t Final objective function value', res_list[-1],
-          'with # of initializations: %i' % (i+1),
-          '\n \t Total runtime:', time.time()-t0)
+    print('\t Final objective function value',res_list[-1],
+          'with # of initializations: %i'%(i+1),
+         '\n \t Total runtime:',time.time()-t0)
     return K, X, E, rho, res_list
+
+
