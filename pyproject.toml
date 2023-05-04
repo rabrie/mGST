@@ -5,10 +5,10 @@ build-backend = "hatchling.build"
 [project]
 name = "mGST"
 version = "0.1.0"
-authors = [Raphael Brieger, Pau Dietz Romero]
+authors = [{ name = "Raphael Brieger", email = "brieger@hhu.de" },{ name = "Pau Dietz Romero", email = "" }]
 description = "Gate Set Tomography"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
