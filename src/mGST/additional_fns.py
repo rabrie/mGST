@@ -3,7 +3,7 @@ import warnings
 import numpy as np
 import numpy.linalg as la
 from scipy.linalg import qr, expm
-from mGST.low_level_jit import local_basis, MVE_lower, Mp_norm_lower
+from mGST.low_level_jit import local_basis, MVE_lower, Mp_norm_lower, contract
 
 
 def transp(dim1, dim2):
@@ -736,6 +736,7 @@ def tvd(X, E, rho, J, y_data):
     dist : float
         The total variation distance.
     """
+    n_povm = y_data.shape[0]
     y_model = np.real(np.array([[E[i].conj()@contract(X,j)@rho for j in J] for i in range(n_povm)]))
     dist = la.norm(y_model - y_data, ord = 1)/2
     return dist

@@ -98,12 +98,12 @@ def A_SFN_riem_Hess(K, A, B, y, J, length, d, r, rK, n_povm, lam=1e-3):
     evals, U = eigh(H)
     
     #Disregarding gauge directions (zero eigenvalues of the Hessian)
-    inv_diag = evals.copy()
-    inv_diag[np.abs(evals)<1e-14] = 1
-    inv_diag[np.abs(evals)>1e-14] = np.abs(inv_diag[np.abs(evals)>1e-14]) + lam
-    H_abs_inv = U@np.diag(1/inv_diag)@U.T.conj()    
+    # inv_diag = evals.copy()
+    # inv_diag[np.abs(evals)<1e-14] = 1
+    # inv_diag[np.abs(evals)>1e-14] = np.abs(inv_diag[np.abs(evals)>1e-14]) + lam
+    # H_abs_inv = U@np.diag(1/inv_diag)@U.T.conj()    
     
-    #H_abs_inv = U@np.diag(1/(np.abs(evals) + lam))@U.T.conj() # Damping all eigenvalues
+    H_abs_inv = U@np.diag(1/(np.abs(evals) + lam))@U.T.conj() # Damping all eigenvalues
 
     Delta_A = ((H_abs_inv@G)[:nt]).reshape(n, pdim)
 
@@ -198,12 +198,12 @@ def B_SFN_riem_Hess(K, A, B, y, J, length, d, r, rK, n_povm, lam=1e-3):
     evals, U = eigh(H)
     
     #Disregarding gauge directions (zero eigenvalues of the Hessian)
-    inv_diag = evals.copy()
-    inv_diag[np.abs(evals)<1e-14] = 1
-    inv_diag[np.abs(evals)>1e-14] = np.abs(inv_diag[np.abs(evals)>1e-14]) + lam
-    H_abs_inv = U@np.diag(1/inv_diag)@U.T.conj()    
+    # inv_diag = evals.copy()
+    # inv_diag[np.abs(evals)<1e-14] = 1
+    # inv_diag[np.abs(evals)>1e-14] = np.abs(inv_diag[np.abs(evals)>1e-14]) + lam
+    # H_abs_inv = U@np.diag(1/inv_diag)@U.T.conj()    
     
-    #H_abs_inv = U@np.diag(1/(np.abs(evals) + lam))@U.T.conj() # Damping all eigenvalues
+    H_abs_inv = U@np.diag(1/(np.abs(evals) + lam))@U.T.conj() # Damping all eigenvalues
 
     Delta = (H_abs_inv@G)[:nt]
     Delta = Delta - Y*(Y.T.conj()@Delta+Delta.T.conj()@Y) / \
@@ -473,12 +473,12 @@ def SFN_riem_Hess_full(K, E, rho, y, J, length, d, r, rK, lam=1e-3, ls='COBYLA')
     evals, U = eigh(H)
     
     #Disregarding gauge directions (zero eigenvalues of the Hessian)
-    inv_diag = evals.copy()
-    inv_diag[np.abs(evals)<1e-14] = 1
-    inv_diag[np.abs(evals)>1e-14] = np.abs(inv_diag[np.abs(evals)>1e-14]) + lam
-    H_abs_inv = U@np.diag(1/inv_diag)@U.T.conj()    
+    # inv_diag = evals.copy()
+    # inv_diag[np.abs(evals)<1e-14] = 1
+    # inv_diag[np.abs(evals)>1e-14] = np.abs(inv_diag[np.abs(evals)>1e-14]) + lam
+    # H_abs_inv = U@np.diag(1/inv_diag)@U.T.conj()    
 
-    #H_abs_inv = U@np.diag(1/(np.abs(evals) + lam))@U.T.conj() # Damping all eigenvalues
+    H_abs_inv = U@np.diag(1/(np.abs(evals) + lam))@U.T.conj() # Damping all eigenvalues
     
     Delta_K = ((H_abs_inv@G.reshape(-1))[:d*nt]).reshape(d, rK, pdim, pdim)
 
