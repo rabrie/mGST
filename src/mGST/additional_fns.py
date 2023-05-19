@@ -555,7 +555,8 @@ def Kraus_rep(X, d, pdim, rK):
     Notes:
         The Kraus representation is obtained from a singular value decomposition
         of the Choi matrix. If parameter rK is smaller than the true rank of the
-        Choi matrix, a rank rK approximation is used.
+        Choi matrix, a rank rK approximation is used. Approximations are only CPT
+        in the special case where the original gate was already of rank <= rK.
     """
     X_choi = X.reshape(d,pdim,pdim,pdim,pdim)
     X_choi = np.einsum('ijklm->iljmk',X_choi).reshape(d,pdim**2,pdim**2)
