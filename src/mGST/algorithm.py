@@ -5,6 +5,7 @@ from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 from scipy.linalg import eigh, eig
 import sys
+from warnings import warn
 from tqdm import tqdm
 from mGST.low_level_jit import objf, ddA_derivs, ddB_derivs, dK, dK_dMdM, ddM
 from mGST.additional_fns import transp, random_gs, batch
@@ -216,7 +217,7 @@ def B_SFN_riem_Hess(K, A, B, y, J, length, d, r, rK, n_povm, lam=1e-3):
     return B_new
 
 
-def gd(K, E, rho, y, J, length, d, r, rK, ls='COBYLA'):
+def gd(K, E, rho, y, J, length, d, r, rK, fixed_gates, ls='COBYLA', ):
     """Do Riemannian gradient descent optimization step on gates
 
     Parameters
@@ -260,12 +261,14 @@ def gd(K, E, rho, y, J, length, d, r, rK, ls='COBYLA'):
     X = np.einsum('ijkl,ijnm -> iknlm', K, K.conj()).reshape(d, r, r)
 
     dK_ = dK(X, K, E, rho, J, y, d, r, rK)
-    for k in range(d):
+    for k in np.where(~fixed_gates)[0]:
         # derivative
         Fy = dK_[k].reshape(n, pdim)
         Y = K[k].reshape(n, pdim)
         rGrad = Fy.conj() - Y@Fy.T@Y  # Riem. gradient taken from conjugate derivative
         Delta[k] = rGrad
+        
+    Delta = tangent_proj(K, Delta, d, rK)
     res = minimize(lineobjf_isom_geodesic, 1e-8, args=(Delta, K,
                    E, rho, J, y), method=ls, options={'maxiter': 200})
     a = res.x
@@ -274,7 +277,7 @@ def gd(K, E, rho, y, J, length, d, r, rK, ls='COBYLA'):
     return K_new
 
 
-def SFN_riem_Hess(K, E, rho, y, J, length, d, r, rK, lam=1e-3, ls='COBYLA'):
+def SFN_riem_Hess(K, E, rho, y, J, length, d, r, rK, lam=1e-3, ls='COBYLA', fixed_gates = []):
     """Riemannian saddle free Newton step on each gate individually
 
     Parameters
@@ -327,9 +330,8 @@ def SFN_riem_Hess(K, E, rho, y, J, length, d, r, rK, lam=1e-3, ls='COBYLA'):
         d, nt, d, nt) + np.einsum('ijklmnop->ikmojlnp', dconjd).reshape(d, nt, d, nt)
     Fyy = dM10.reshape(d, nt, d, nt) + \
         np.einsum('ijklmnop->ikmojlnp', dd).reshape(d, nt, d, nt)
-
-    for k in range(d):
-
+    
+    for k in np.where(~fixed_gates)[0]:
         Fy = dK_[k].reshape(n, pdim)
         Y = K[k].reshape(n, pdim)
         rGrad = Fy.conj() - Y@Fy.T@Y  # riemannian gradient, taken from conjugate derivative
@@ -363,13 +365,13 @@ def SFN_riem_Hess(K, E, rho, y, J, length, d, r, rK, lam=1e-3, ls='COBYLA'):
 
         H_abs_inv = S@np.diag(1/(np.abs(evals) + lam))@la.inv(S)
         Delta_K[k] = ((H_abs_inv@G)[:nt]).reshape(rK, pdim, pdim)
-
+        
     Delta = tangent_proj(K, Delta_K, d, rK)
 
     res = minimize(lineobjf_isom_geodesic, 1e-8, args=(Delta, K,
-                   E, rho, J, y), method=ls, options={'maxiter': 20})
+                   E, rho, J, y), method=ls, options={'maxiter': 200})
     a = res.x
-    K_new = update_K_geodesic(K, Delta, a), np.linalg.norm(Delta_K)
+    K_new = update_K_geodesic(K, Delta, a)
 
     return K_new
 
@@ -488,11 +490,10 @@ def SFN_riem_Hess_full(K, E, rho, y, J, length, d, r, rK, lam=1e-3, ls='COBYLA')
                    E, rho, J, y), method=ls, options={'maxiter': 20})
     a = res.x
     K_new = update_K_geodesic(K, Delta, a)
-
     return K_new
 
 
-def optimize(y, J, length, d, r, rK, n_povm, method, K, rho, A, B):
+def optimize(y, J, length, d, r, rK, n_povm, method, K, rho, A, B, fixed_elements):
     """Full gate set optimization update alternating on E, K and rho
 
     Parameters
@@ -540,21 +541,39 @@ def optimize(y, J, length, d, r, rK, n_povm, method, K, rho, A, B):
     B_new : numpy array
         Updated initial state parametrization
     """
-    A_new = A_SFN_riem_Hess(K, A, B, y, J, length, d, r, rK, n_povm)
-    E_new = np.array([(A_new[i].T.conj()@A_new[i]).reshape(-1) for i in range(n_povm)])
-    if method == 'SFN':
-        K_new = SFN_riem_Hess_full(K, E_new, rho, y, J, length, d, r, rK, lam=1e-3, ls='COBYLA')
-    elif method == 'GD':
-        K_new = gd(K, E_new, rho, y, J, length, d, r, rK, ls='COBYLA')
-    B_new = B_SFN_riem_Hess(K_new, A_new, B, y, J, length, d, r, rK, n_povm, lam=1e-3)
-    rho_new = (B_new@B_new.T.conj()).reshape(-1)
+    if 'E' in fixed_elements:
+        A_new = A
+        E_new = np.array([(A_new[i].T.conj()@A_new[i]).reshape(-1) for i in range(n_povm)])
+    else:
+        A_new = A_SFN_riem_Hess(K, A, B, y, J, length, d, r, rK, n_povm)
+        E_new = np.array([(A_new[i].T.conj()@A_new[i]).reshape(-1) for i in range(n_povm)])
+        
+    if any([('G%i'%i in fixed_elements) for i in range(d)]):
+        fixed_gates = np.array([('G%i'%i in fixed_elements) for i in range(d)])
+        if method == 'SFN':
+            K_new = SFN_riem_Hess(K, E_new, rho, y, J, length, d, r, rK, lam=1e-3, ls='COBYLA', fixed_gates = fixed_gates)
+        elif method == 'GD':
+            K_new = gd(K, E_new, rho, y, J, length, d, r, rK, ls='COBYLA', fixed_gates = fixed_gates)        
+    else:
+        if method == 'SFN':
+            K_new = SFN_riem_Hess_full(K, E_new, rho, y, J, length, d, r, rK, lam=1e-3, ls='COBYLA')
+        elif method == 'GD':
+            fixed_gates = np.array([('G%i'%i in fixed_elements) for i in range(d)])
+            K_new = gd(K, E_new, rho, y, J, length, d, r, rK, fixed_gates = fixed_gates, ls='COBYLA')
+        
+    if 'rho' in fixed_elements:
+        rho_new = rho
+        B_new = B
+    else:
+        B_new = B_SFN_riem_Hess(K_new, A_new, B, y, J, length, d, r, rK, n_povm, lam=1e-3)
+        rho_new = (B_new@B_new.T.conj()).reshape(-1)
     X_new = np.einsum('ijkl,ijnm -> iknlm', K_new, K_new.conj()).reshape(d, r, r)
     return K_new, X_new, E_new, rho_new, A_new, B_new
 
 
 def run_mGST(*args, method='SFN', max_inits=10,
-             max_iter=200, final_iter=70, target_rel_prec=1e-4, threshold_multiplyer=3,
-             init=[], testing=False):
+             max_iter=200, final_iter=70, target_rel_prec=1e-4, threshold_multiplier=3,
+             fixed_elements = [], init=[], testing=False):
     """Main mGST routine
 
     Parameters
@@ -609,7 +628,12 @@ def run_mGST(*args, method='SFN', max_inits=10,
     t0 = time.time()
     pdim = int(np.sqrt(r))
     #stopping criterion (Faktor 3 can be increased if model mismatch is high)
-    delta = threshold_multiplyer*(1-y.reshape(-1))@y.reshape(-1)/len(J)/n_povm/meas_samples 
+    delta = threshold_multiplier*(1-y.reshape(-1))@y.reshape(-1)/len(J)/n_povm/meas_samples 
+    
+    if any([('G%i'%i in fixed_elements) for i in range(d)]) and method == 'SFN':
+        warn('The SFN method with fixed gates is currently only implemented via \n'\
+                 'iterative updates over individual gates and might lead to a slower converges \n'\
+                    'compared to the default SFN method.', stacklevel=2)
     
     if init:
         K = init[0]
@@ -619,8 +643,10 @@ def run_mGST(*args, method='SFN', max_inits=10,
         A = np.array([la.cholesky(E[k].reshape(pdim,pdim)+1e-14*np.eye(pdim)).T.conj()
                       for k in range(n_povm)]) 
         B = la.cholesky(rho.reshape(pdim, pdim))
-        X = np.einsum('ijkl,ijnm -> iknlm', K, K.conj()).reshape(d, r, r)   
+        X = np.einsum('ijkl,ijnm -> iknlm', K, K.conj()).reshape(d, r, r)  
+        res_list = [objf(X,E,rho,J,y)]
         max_reruns = 1
+        i=0
 
     success = 0
     print('Starting optimization...')
@@ -634,7 +660,7 @@ def run_mGST(*args, method='SFN', max_inits=10,
             for j in tqdm(range(max_iter), file=sys.stdout):
                 yb,Jb = batch(y, J, bsize)
                 K, X, E, rho, A, B = optimize(
-                    yb, Jb, length, d, r, rK, n_povm, method, K, rho, A, B)
+                    yb, Jb, length, d, r, rK, n_povm, method, K, rho, A, B, fixed_elements)
                 res_list.append(objf(X, E, rho, J, y)) 
                 if res_list[-1] < delta:
                     success = 1
@@ -652,14 +678,12 @@ def run_mGST(*args, method='SFN', max_inits=10,
             if i+1 < max_inits:
                 print('Run ', i, 'failed, trying new initialization...')
             else:
-                print('Maximum number of reinitializations reached without reaching success',
+                print('Maximum number of reinitializations reached without attaining success',
                       'threshold, attempting optimization over full data set...')
-    else:
-        i=0
-        res_list = [objf(X,E,rho,J,y)]
+    elif init and max_iter>0:
         for j in tqdm(range(max_iter), file=sys.stdout):
             yb, Jb = batch(y, J, bsize)
-            K, X, E, rho, A, B = optimize(yb, Jb, length, d, r, rK, n_povm, method, K, rho, A, B)
+            K, X, E, rho, A, B = optimize(yb, Jb, length, d, r, rK, n_povm, method, K, rho, A, B, fixed_elements)
             res_list.append(objf(X ,E, rho, J, y)) 
             if res_list[-1] < delta:
                 success = 1
@@ -676,7 +700,7 @@ def run_mGST(*args, method='SFN', max_inits=10,
         else: 
             print('Success threshold not reached, attempting optimization over full data set...')
     for n in tqdm(range(final_iter), file=sys.stdout):
-        K, X, E, rho, A, B = optimize(y, J, length, d, r, rK, n_povm, method, K, rho, A, B)
+        K, X, E, rho, A, B = optimize(y, J, length, d, r, rK, n_povm, method, K, rho, A, B, fixed_elements)
         res_list.append(objf(X, E, rho, J, y))
         if np.abs(res_list[-2]-res_list[-1])<delta*target_rel_prec:
             break

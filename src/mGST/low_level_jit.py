@@ -397,7 +397,7 @@ def ddM(X, K, E, rho, J, y, d, r, rK):
     dconjdK = np.zeros((d**2, rK**2, r, r))
     dconjdK = np.ascontiguousarray(ddK.astype(np.complex128))
     m = len(J)
-    for k in prange(d**2):
+    for k in range(d**2):
         k1, k2 = local_basis(k, d, 2)
         for n in range(m):
             j = J[n][J[n] >= 0]
