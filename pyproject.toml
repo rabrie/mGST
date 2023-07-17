@@ -5,7 +5,14 @@ build-backend = "hatchling.build"
 [project]
 name = "mGST"
 version = "0.1.0"
-authors = [Raphael Brieger, Pau Dietz Romero]
+license = "MIT"
+
+[[project.authors]]
+name = "Raphael Brieger"
+[[project.authors]]
+name = "Pau Dietz Romero"
+
+
 description = "Gate Set Tomography"
 readme = "README.md"
 requires-python = ">=3.10"
