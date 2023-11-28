@@ -26,7 +26,7 @@ def transp(dim1, dim2):
     """
     Id1 = np.eye(dim1)
     Id2 = np.eye(dim2)
-    T = np.einsum('il,jk->ijkl', Id2, Id1).reshape(dim1*dim2, dim1*dim2)
+    T = np.einsum("il,jk->ijkl", Id2, Id1).reshape(dim1 * dim2, dim1 * dim2)
     return T
 
 
@@ -74,9 +74,9 @@ def randvec(n):
         Length n vector with complex entries whose real and imaginary part is independently drawn
         from the normal distribution with mean 0 and variance 1.
     """
-    g = np.random.randn(n)+1j*np.random.randn(
-        n)  # randn(n) produces a random vector of length n with mean 0 and variance 1
-    g = g/np.linalg.norm(g)
+    # randn(n) produces a random vector of length n with mean 0 and variance 1
+    g = np.random.randn(n) + 1j * np.random.randn(n)
+    g = g / np.linalg.norm(g)
     return g
 
 
@@ -98,9 +98,10 @@ def randHerm(n):
         This matrix is then projected onto the space of hermitian
         matrices and normalized in spectral norm.
     """
-    G = randvec(n*n).reshape(n, n)
-    G = (G+G.T.conj())/2
-    G = G/np.linalg.norm(G, ord=2)  # ord=2 gives the spectral norm
+    G = randvec(n * n).reshape(n, n)
+    G = (G + G.T.conj()) / 2
+    # ord=2 gives the spectral norm
+    G = G / np.linalg.norm(G, ord=2)
     return G
 
 
@@ -124,10 +125,10 @@ def randHermGS(d, r):
         whose indies are then rearanged to obtain random hermiticity preserving superoperators.
     """
     dim = int(np.sqrt(r))
-    X = np.zeros((r, d, r), dtype='complex')
+    X = np.zeros((r, d, r), dtype="complex")
     for i in range(d):
         H = randHerm(r).reshape(dim, dim, dim, dim)
-        H = np.einsum('ijkl->jlik', H)
+        H = np.einsum("ijkl->jlik", H)
         X[:, i, :] = H.reshape(r, r)
     return X
 
@@ -147,7 +148,7 @@ def randU(n, a=1):
     U: 2D numpy array
         Matrix exponential of random hermitian matrix times the imaginary unit.
     """
-    return expm(1j*a*randHerm(n)).astype(np.complex128)
+    return expm(1j * a * randHerm(n)).astype(np.complex128)
 
 
 def randU_Haar(n):
@@ -198,7 +199,7 @@ def randKrausSet(d, r, rK, a=1):
     pdim = int(np.sqrt(r))
     K = np.zeros((d, rK, pdim, pdim)).astype(np.complex128)
     for i in range(d):
-        K[i, :, :, :] += randU(pdim*rK, a)[:, :pdim].reshape(rK, pdim, pdim)
+        K[i, :, :, :] += randU(pdim * rK, a)[:, :pdim].reshape(rK, pdim, pdim)
     return K
 
 
@@ -228,7 +229,7 @@ def randKrausSet_Haar(d, r, rK):
     pdim = int(np.sqrt(r))
     K = np.zeros((d, rK, pdim, pdim)).astype(np.complex128)
     for i in range(d):
-        K[i, :, :, :] += randU_Haar(pdim*rK)[:, :pdim].reshape(rK, pdim, pdim)
+        K[i, :, :, :] += randU_Haar(pdim * rK)[:, :pdim].reshape(rK, pdim, pdim)
     return K
 
 
@@ -258,11 +259,10 @@ def random_gs(d, r, rK, n_povm):
         The Kraus operators are generated from random unitaries, see function randKrausSet
     """
     K = randKrausSet(d, r, rK).copy()
-    X = np.einsum('ijkl,ijnm -> iknlm', K, K.conj()).reshape(d, r, r)
+    X = np.einsum("ijkl,ijnm -> iknlm", K, K.conj()).reshape(d, r, r)
     rho = randpsd(r).copy()
     A = randKrausSet(1, r, n_povm)[0].conj()
-    E = np.array([(A[i].T.conj()@A[i]).reshape(-1)
-                 for i in range(n_povm)]).copy()
+    E = np.array([(A[i].T.conj() @ A[i]).reshape(-1) for i in range(n_povm)]).copy()
     return K, X, E, rho
 
 
@@ -292,11 +292,10 @@ def random_gs_Haar(d, r, rK, n_povm):
         The Kraus operators are generated from Haar random unitaries, see function randKrausSet_Haar
     """
     K = randKrausSet_Haar(d, r, rK).copy()
-    X = np.einsum('ijkl,ijnm -> iknlm', K, K.conj()).reshape(d, r, r)
+    X = np.einsum("ijkl,ijnm -> iknlm", K, K.conj()).reshape(d, r, r)
     rho = randpsd(r).copy()
     A = randKrausSet_Haar(1, r, n_povm)[0].conj()
-    E = np.array([(A[i].T.conj()@A[i]).reshape(-1)
-                 for i in range(n_povm)]).copy()
+    E = np.array([(A[i].T.conj() @ A[i]).reshape(-1) for i in range(n_povm)]).copy()
     return K, X, E, rho
 
 
@@ -339,10 +338,9 @@ def depol(pdim, p):
     Notes:
         The depolarizing channel is defined as L(rho) = (1-p)*rho + p/pdim*Id.
     """
-    phi_plus = np.sum([np.kron(basis(pdim, i), basis(pdim, i))
-                      for i in range(pdim)], axis=0)
-    choi_state = p/pdim*np.eye(pdim**2) + (1-p) * \
-        np.kron(phi_plus, phi_plus.reshape(pdim**2, 1))
+    phi_plus = np.sum([np.kron(basis(pdim, i), basis(pdim, i)) for i in range(pdim)], axis=0)
+    choi_state = p / pdim * np.eye(pdim**2) + (1 - p) * np.kron(
+        phi_plus, phi_plus.reshape(pdim**2, 1))
     K_depol = la.cholesky(choi_state)
     return K_depol.reshape(pdim, pdim, pdim**2).swapaxes(0, 2)
 
@@ -400,8 +398,8 @@ def batch(y, J, bsize):
     if y.shape[1] <= bsize:
         return y, J
     if bsize < 1:  # if batch size is given as ratio
-        bsize = int(bsize*len(J)//1)
-    batchmask = np.array([1] * bsize + [0] * (len(J)-bsize))
+        bsize = int(bsize * len(J) // 1)
+    batchmask = np.array([1] * bsize + [0] * (len(J) - bsize))
     np.random.shuffle(batchmask)
     J_b = J[batchmask == 1]
     y_b = y[:, batchmask == 1]
@@ -431,12 +429,12 @@ def F_avg_X(X, K):
     d = K.shape[0]
     Fid_list = []
     for k in range(d):
-        choi_inner_prod = np.einsum('imjl,pml,pij', X[k].reshape(
-            pdim, pdim, pdim, pdim), K[k], K[k].conj())
+        choi_inner_prod = np.einsum(
+            "imjl,pml,pij", X[k].reshape(pdim, pdim, pdim, pdim), K[k], K[k].conj())
 
-        unitality_term = np.einsum('imkk,pml,pil', X[k].reshape(
-            pdim, pdim, pdim, pdim), K[k], K[k].conj())
-        Fid = (choi_inner_prod + unitality_term)/pdim/(pdim+1)
+        unitality_term = np.einsum(
+            "imkk,pml,pil", X[k].reshape(pdim, pdim, pdim, pdim), K[k], K[k].conj())
+        Fid = (choi_inner_prod + unitality_term) / pdim / (pdim + 1)
         Fid_list.append(Fid)
     return np.average(np.real(Fid_list)), np.real(Fid_list)
 
@@ -478,10 +476,10 @@ def MVE(X_true, E_true, rho_true, X, E, rho, d, length, n_povm, samples=10000):
         over the POVM elements is computed. Afterwards the meean over these total
         variation errors is returned.
     """
-    if samples == 'all' or np.log(samples)/np.log(d) > length:
-        J = np.random.randint(0, d, length*d**length).reshape(d**length, length)
+    if samples == "all" or np.log(samples) / np.log(d) > length:
+        J = np.random.randint(0, d, length * d**length).reshape(d**length, length)
     else:
-        J = np.random.randint(0, d, length*samples).reshape(samples, length)
+        J = np.random.randint(0, d, length * samples).reshape(samples, length)
     return MVE_lower(X_true, E_true, rho_true, X, E, rho, J, n_povm)
 
 
@@ -525,10 +523,10 @@ def Mp_norm(X_true, E_true, rho_true, X, E, rho, d, length, n_povm, p, samples=1
         variation errors is returned.
 
     """
-    if samples == 'all' or np.log(samples)/np.log(d) > length:
-        J = np.random.randint(0, d, length*d**length).reshape(d**length, length)
+    if samples == "all" or np.log(samples) / np.log(d) > length:
+        J = np.random.randint(0, d, length * d**length).reshape(d**length, length)
     else:
-        J = np.random.randint(0, d, length*samples).reshape(samples, length)
+        J = np.random.randint(0, d, length * samples).reshape(samples, length)
     return Mp_norm_lower(X_true, E_true, rho_true, X, E, rho, J, n_povm, p)
 
 
@@ -558,18 +556,17 @@ def Kraus_rep(X, d, pdim, rK):
         Choi matrix, a rank rK approximation is used. Approximations are only CPT
         in the special case where the original gate was already of rank <= rK.
     """
-    X_choi = X.reshape(d,pdim,pdim,pdim,pdim)
-    X_choi = np.einsum('ijklm->iljmk',X_choi).reshape(d,pdim**2,pdim**2)
-    K = np.zeros((d,rK,pdim,pdim)).astype(np.complex128)
+    X_choi = X.reshape(d, pdim, pdim, pdim, pdim)
+    X_choi = np.einsum("ijklm->iljmk", X_choi).reshape(d, pdim**2, pdim**2)
+    K = np.zeros((d, rK, pdim, pdim)).astype(np.complex128)
     for i in range(d):
-        w,v = la.eigh(X_choi[i])
-        if np.min(w)<-1e-12:
-            raise ValueError(
-                'Choi Matrix is not positive definite within tolerance 1e-12')
-        K[i] = np.einsum(
-            'ijk->kji',(v[:,-rK:]@np.diag(np.sqrt(np.abs(w[-rK:])))).reshape(pdim,pdim,rK))
-        K[i] = K[i]/np.sqrt(np.einsum(
-            'ijk,ijk',K[i], K[i].conj()))*np.sqrt(pdim) #Trace normalization of Choi Matrix
+        w, v = la.eigh(X_choi[i])
+        if np.min(w) < -1e-12:
+            raise ValueError("Choi Matrix is not positive definite within tolerance 1e-12")
+        K[i] = np.einsum("ijk->kji",
+                         (v[:, -rK:] @ np.diag(np.sqrt(np.abs(w[-rK:])))).reshape(pdim, pdim, rK))
+        # Trace normalization of Choi Matrix
+        K[i] = (K[i] / np.sqrt(np.einsum("ijk,ijk", K[i], K[i].conj())) * np.sqrt(pdim))
     return np.array(K)
 
 
@@ -597,20 +594,18 @@ def sampled_measurements(y, n):
     n_povm, m = y.shape
     if any(y.reshape(-1) > 1) or any(y.reshape(-1) < 0):
         y_new = np.maximum(np.minimum(y, 1), 0)
-        if np.sum(np.abs(y_new-y)) > 1e-6:
-            warnings.warn(
-                "Warning: Probabilities capped to interval [0,1]",
-                "l1-difference to input:%f" % np.sum(np.abs(y_new-y)))
+        if np.sum(np.abs(y_new - y)) > 1e-6:
+            warnings.warn("Warning: Probabilities capped to interval [0,1]",
+                          "l1-difference to input:%f" % np.sum(np.abs(y_new - y)))
         y = y_new
     rng = np.random.default_rng()
     y_sampled = np.zeros(y.shape)
     for i in range(m):
-        y_sampled[:, i] = rng.multinomial(
-            n, [y[o, i] for o in range(n_povm)])/n
+        y_sampled[:, i] = rng.multinomial(n, [y[o, i] for o in range(n_povm)]) / n
     return y_sampled
 
 
-def random_len_seq(d,min_l,max_l,N):
+def random_len_seq(d, min_l, max_l, N):
     """Generate random gate sequence instructions which contain sequences of different lengths,
     the lengths are drawn uniformly at random from (min_l, ..., max_l)
 
@@ -631,11 +626,11 @@ def random_len_seq(d,min_l,max_l,N):
         2D array where each row contains the gate indices of a gate sequence
 
     """
-    seq_lengths = np.random.randint(min_l,max_l+1,N)
+    seq_lengths = np.random.randint(min_l, max_l + 1, N)
     J = []
-    for l in seq_lengths:
-        j_curr = np.random.randint(0,d,l)
-        J.append(list(np.pad(j_curr,(0,max_l-l),'constant',constant_values=-1)))
+    for length in seq_lengths:
+        j_curr = np.random.randint(0, d, length)
+        J.append(list(np.pad(j_curr, (0, max_l - length), "constant", constant_values=-1)))
     return np.array(J)
 
 
@@ -661,14 +656,13 @@ def generate_fids(d, length, m_f):
         Sequence list for all combinations of fiducials seuqneces with a gate
         in between: fiducial1 -- gate -- fiducial2
     """
-    fid_length = (length-1)//2
+    fid_length = (length - 1) // 2
     fid = random.sample(range(d**fid_length), m_f).copy()
     J_fid = [list(local_basis(ind, d, fid_length)) for ind in fid]
-    J_fid2 = np.array([seqL+seqR for seqL in J_fid for seqR in J_fid])
-    J_meas = np.zeros((d, m_f**2, length), dtype='int')
+    J_fid2 = np.array([seqL + seqR for seqL in J_fid for seqR in J_fid])
+    J_meas = np.zeros((d, m_f**2, length), dtype="int")
     for k in range(d):
-        J_meas[k] = np.array(
-            [seqL+[k]+seqR for seqL in J_fid for seqR in J_fid])
+        J_meas[k] = np.array([seqL + [k] + seqR for seqL in J_fid for seqR in J_fid])
     return np.array(J_fid), J_fid2, J_meas
 
 
@@ -691,29 +685,28 @@ def is_positive(X, E, rho):
     n_povm = E.shape[0]
 
     X_choi = X.reshape(d, pdim, pdim, pdim, pdim)
-    X_choi = np.einsum('ijklm->iljmk', X_choi).reshape(d, r, r)
+    X_choi = np.einsum("ijklm->iljmk", X_choi).reshape(d, r, r)
 
     eigvals = np.array([la.eigvals(X_choi[i]) for i in range(d)])
-    partial_traces = np.einsum(
-        'aiikl -> akl', X.reshape(d, pdim, pdim, pdim, pdim))
-    povm_eigvals = np.array(
-        [la.eigvals(E[i].reshape(pdim, pdim)) for i in range(n_povm)])
+    partial_traces = np.einsum("aiikl -> akl", X.reshape(d, pdim, pdim, pdim, pdim))
+    povm_eigvals = np.array([la.eigvals(E[i].reshape(pdim, pdim)) for i in range(n_povm)])
     if np.any(np.imag(eigvals.reshape(-1) > 1e-10)):
-        print('Gates are not all hermitian.')
+        print("Gates are not all hermitian.")
     else:
         for i in range(d):
-            print('Gate %i positive:' % i, np.all(eigvals[i, :] > - 1e-10))
-            print('Gate %i trace preserving:' %
-                  i, la.norm(partial_traces[i]-np.eye(pdim)) < 1e-10)
-    print('Initial state positive:', np.all(
-        la.eigvals(rho.reshape(pdim, pdim)) > - 1e-10))
-    print('Initial state normalization:', np.trace(rho.reshape(pdim, pdim)))
-    print('POVM valid:', np.all([la.norm(np.sum(E, axis=0).reshape(
-        pdim, pdim) - np.eye(pdim)) < 1e-10, np.all(povm_eigvals.reshape(-1) > - 1e-10)]))
+            print("Gate %i positive:" % i, np.all(eigvals[i, :] > -1e-10))
+            print("Gate %i trace preserving:" % i,
+                  la.norm(partial_traces[i] - np.eye(pdim)) < 1e-10)
+    print("Initial state positive:", np.all(la.eigvals(rho.reshape(pdim, pdim)) > -1e-10))
+    print("Initial state normalization:", np.trace(rho.reshape(pdim, pdim)))
+    print("POVM valid:", np.all([la.norm(np.sum(E, axis=0).reshape(pdim, pdim)
+                                         - np.eye(pdim)) < 1e-10,
+                                 np.all(povm_eigvals.reshape(-1) > -1e-10)]))
     return
 
+
 def tvd(X, E, rho, J, y_data):
-    """Return the total variation distance between model probabilities for the circuits in J 
+    """Return the total variation distance between model probabilities for the circuits in J
     and the probabilities given by y_data.
 
     Parameters
@@ -725,9 +718,9 @@ def tvd(X, E, rho, J, y_data):
     rho : numpy array
         Initial state
     y_data : numpy array
-        2D array of measurement outcomes for sequences in J; 
+        2D array of measurement outcomes for sequences in J;
         Each column contains the outcome probabilities for a fixed sequence
-    J : numpy array 
+    J : numpy array
         2D array where each row contains the gate indices of a gate sequence
     bsize : int
         Size of the batch (number of sequences)
@@ -738,6 +731,7 @@ def tvd(X, E, rho, J, y_data):
         The total variation distance.
     """
     n_povm = y_data.shape[0]
-    y_model = np.real(np.array([[E[i].conj()@contract(X,j)@rho for j in J] for i in range(n_povm)]))
-    dist = la.norm(y_model - y_data, ord = 1)/2
+    y_model = np.real(np.array([[E[i].conj() @ contract(X, j) @ rho for j in J]
+                                for i in range(n_povm)]))
+    dist = la.norm(y_model - y_data, ord=1) / 2
     return dist
