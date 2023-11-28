@@ -50,15 +50,15 @@ def A_SFN_riem_Hess(K, A, B, y, J, length, d, r, rK, n_povm, lam=1e-3):
         Updated POVM parametrization
     """
     pdim = int(np.sqrt(r))
-    n = n_povm*pdim
-    nt = n_povm*r
-    rho = (B@B.T.conj()).reshape(-1)
+    n = n_povm * pdim
+    nt = n_povm * r
+    rho = (B @ B.T.conj()).reshape(-1)
     H = np.zeros((2, nt, 2, nt)).astype(np.complex128)
     P_T = np.zeros((2, nt, 2, nt)).astype(np.complex128)
     Fyconjy = np.zeros((n_povm, r, n_povm, r)).astype(np.complex128)
     Fyy = np.zeros((n_povm, r, n_povm, r)).astype(np.complex128)
 
-    X = np.einsum('ijkl,ijnm -> iknlm', K, K.conj()).reshape(d, r, r)
+    X = np.einsum("ijkl,ijnm -> iknlm", K, K.conj()).reshape(d, r, r)
     dA_, dMdM, dMconjdM, dconjdA = ddA_derivs(X, A, B, J, y, r, pdim, n_povm)
 
     # Second derivatives
@@ -69,49 +69,57 @@ def A_SFN_riem_Hess(K, A, B, y, J, length, d, r, rK, n_povm, lam=1e-3):
     # derivative
     Fy = dA_.reshape(n, pdim)
     Y = A.reshape(n, pdim)
-    rGrad = Fy.conj() - Y@Fy.T@Y
+    rGrad = Fy.conj() - Y @ Fy.T @ Y
     G = np.array([rGrad, rGrad.conj()]).reshape(-1)
 
-    P = np.eye(n) - Y@Y.T.conj()
+    P = np.eye(n) - Y @ Y.T.conj()
     T = transp(n, pdim)
 
     # Hessian assembly
-    H00 = -(np.kron(Y, Y.T))@T@Fyy.reshape(nt, nt).T + Fyconjy.reshape(nt, nt).T.conj() - \
-        (np.kron(np.eye(n), Y.T@Fy))/2 - (np.kron(Y@Fy.T, np.eye(pdim))) / \
-        2 - (np.kron(P, Fy.T.conj()@Y.conj()))/2
-    H01 = Fyy.reshape(nt, nt).T.conj() - np.kron(Y, Y.T)@T@Fyconjy.reshape(
-        nt, nt).T + (np.kron(Fy.conj(), Y.T)@T)/2 + (np.kron(Y, Fy.T.conj())@T)/2
+    H00 = (
+        -(np.kron(Y, Y.T)) @ T @ Fyy.reshape(nt, nt).T
+        + Fyconjy.reshape(nt, nt).T.conj()
+        - (np.kron(np.eye(n), Y.T @ Fy)) / 2
+        - (np.kron(Y @ Fy.T, np.eye(pdim))) / 2
+        - (np.kron(P, Fy.T.conj() @ Y.conj())) / 2
+    )
+    H01 = (
+        Fyy.reshape(nt, nt).T.conj()
+        - np.kron(Y, Y.T) @ T @ Fyconjy.reshape(nt, nt).T
+        + (np.kron(Fy.conj(), Y.T) @ T) / 2
+        + (np.kron(Y, Fy.T.conj()) @ T) / 2
+    )
 
     H[0, :, 0, :] = H00
     H[0, :, 1, :] = H01
     H[1, :, 0, :] = H01.conj()
     H[1, :, 1, :] = H00.conj()
 
-    P_T[0, :, 0, :] = np.eye(nt) - np.kron(Y@Y.T.conj(), np.eye(pdim))/2
-    P_T[0, :, 1, :] = - np.kron(Y, Y.T)@T/2
+    P_T[0, :, 0, :] = np.eye(nt) - np.kron(Y @ Y.T.conj(), np.eye(pdim)) / 2
+    P_T[0, :, 1, :] = -np.kron(Y, Y.T) @ T / 2
     P_T[1, :, 0, :] = P_T[0, :, 1, :].conj()
     P_T[1, :, 1, :] = P_T[0, :, 0, :].conj()
 
-    H = H.reshape(2*nt, 2*nt)@P_T.reshape(2*nt, 2*nt)
+    H = H.reshape(2 * nt, 2 * nt) @ P_T.reshape(2 * nt, 2 * nt)
 
     # saddle free newton method
-    H = (H + H.T.conj())/2
+    H = (H + H.T.conj()) / 2
     evals, U = eigh(H)
-    
-    #Disregarding gauge directions (zero eigenvalues of the Hessian)
+
+    # Disregarding gauge directions (zero eigenvalues of the Hessian)
     # inv_diag = evals.copy()
     # inv_diag[np.abs(evals)<1e-14] = 1
     # inv_diag[np.abs(evals)>1e-14] = np.abs(inv_diag[np.abs(evals)>1e-14]) + lam
-    # H_abs_inv = U@np.diag(1/inv_diag)@U.T.conj()    
-    
-    H_abs_inv = U@np.diag(1/(np.abs(evals) + lam))@U.T.conj() # Damping all eigenvalues
+    # H_abs_inv = U@np.diag(1/inv_diag)@U.T.conj()
 
-    Delta_A = ((H_abs_inv@G)[:nt]).reshape(n, pdim)
+    # Damping all eigenvalues
+    H_abs_inv = (U @ np.diag(1 / (np.abs(evals) + lam)) @ U.T.conj())
+
+    Delta_A = ((H_abs_inv @ G)[:nt]).reshape(n, pdim)
 
     Delta = tangent_proj(A, Delta_A, 1, n_povm)[0]
 
-    a = minimize(lineobjf_A_geodesic, 1e-9,
-                 args=(Delta, X, A, rho, J, y), method='COBYLA').x
+    a = minimize(lineobjf_A_geodesic, 1e-9, args=(Delta, X, A, rho, J, y), method='COBYLA').x
     A_new = update_A_geodesic(A, Delta, a)
     return A_new
 
@@ -155,13 +163,13 @@ def B_SFN_riem_Hess(K, A, B, y, J, length, d, r, rK, n_povm, lam=1e-3):
     pdim = int(np.sqrt(r))
     n = r
     nt = r
-    E = np.array([(A[i].T.conj()@A[i]).reshape(-1) for i in range(n_povm)])
+    E = np.array([(A[i].T.conj() @ A[i]).reshape(-1) for i in range(n_povm)])
     H = np.zeros((2, nt, 2, nt)).astype(np.complex128)
     P_T = np.zeros((2, nt, 2, nt)).astype(np.complex128)
     Fyconjy = np.zeros((r, r)).astype(np.complex128)
     Fyy = np.zeros((r, r)).astype(np.complex128)
 
-    X = np.einsum('ijkl,ijnm -> iknlm', K, K.conj()).reshape(d, r, r)
+    X = np.einsum("ijkl,ijnm -> iknlm", K, K.conj()).reshape(d, r, r)
     dB_, dMdM, dMconjdM, dconjdB = ddB_derivs(X, A, B, J, y, r, pdim)
 
     # Second derivatives
@@ -171,44 +179,54 @@ def B_SFN_riem_Hess(K, A, B, y, J, length, d, r, rK, n_povm, lam=1e-3):
     # derivative
     Fy = dB_.reshape(n)
     Y = B.reshape(n)
-    rGrad = Fy.conj() - Y*(Fy.T@Y)
+    rGrad = Fy.conj() - Y * (Fy.T @ Y)
     G = np.array([rGrad, rGrad.conj()]).reshape(-1)
 
     P = np.eye(n) - np.outer(Y, Y.T.conj())
 
     # Hessian assembly
-    H00 = -(np.outer(Y, Y.T))@Fyy.reshape(nt, nt).T + Fyconjy.reshape(nt, nt).T.conj() - \
-        np.eye(n)*(Y.T@Fy)/2 - np.outer(Y, Fy.T)/2 - P*(Fy.T.conj()@Y.conj())/2
-    H01 = Fyy.reshape(nt, nt).T.conj() - np.outer(Y, Y.T)@Fyconjy.reshape(
-        nt, nt).T + np.outer(Fy.conj(), Y.T)/2 + np.outer(Y, Fy.T.conj())/2
+    H00 = (
+        -(np.outer(Y, Y.T)) @ Fyy.reshape(nt, nt).T
+        + Fyconjy.reshape(nt, nt).T.conj()
+        - np.eye(n) * (Y.T @ Fy) / 2
+        - np.outer(Y, Fy.T) / 2
+        - P * (Fy.T.conj() @ Y.conj()) / 2
+    )
+    H01 = (
+        Fyy.reshape(nt, nt).T.conj()
+        - np.outer(Y, Y.T) @ Fyconjy.reshape(nt, nt).T
+        + np.outer(Fy.conj(), Y.T) / 2
+        + np.outer(Y, Fy.T.conj()) / 2
+    )
 
     H[0, :, 0, :] = H00
     H[0, :, 1, :] = H01
     H[1, :, 0, :] = H01.conj()
     H[1, :, 1, :] = H00.conj()
 
-    P_T[0, :, 0, :] = np.eye(nt) - np.outer(Y, Y.T.conj())/2
-    P_T[0, :, 1, :] = - np.outer(Y, Y.T)/2
+    P_T[0, :, 0, :] = np.eye(nt) - np.outer(Y, Y.T.conj()) / 2
+    P_T[0, :, 1, :] = -np.outer(Y, Y.T) / 2
     P_T[1, :, 0, :] = P_T[0, :, 1, :].conj()
     P_T[1, :, 1, :] = P_T[0, :, 0, :].conj()
 
-    H = H.reshape(2*nt, 2*nt)@P_T.reshape(2*nt, 2*nt)
+    H = H.reshape(2 * nt, 2 * nt) @ P_T.reshape(2 * nt, 2 * nt)
 
     # saddle free newton method
-    H = (H + H.T.conj())/2
+    H = (H + H.T.conj()) / 2
     evals, U = eigh(H)
-    
-    #Disregarding gauge directions (zero eigenvalues of the Hessian)
+
+    # Disregarding gauge directions (zero eigenvalues of the Hessian)
     # inv_diag = evals.copy()
     # inv_diag[np.abs(evals)<1e-14] = 1
     # inv_diag[np.abs(evals)>1e-14] = np.abs(inv_diag[np.abs(evals)>1e-14]) + lam
-    # H_abs_inv = U@np.diag(1/inv_diag)@U.T.conj()    
-    
-    H_abs_inv = U@np.diag(1/(np.abs(evals) + lam))@U.T.conj() # Damping all eigenvalues
+    # H_abs_inv = U@np.diag(1/inv_diag)@U.T.conj()
+
+    # Damping all eigenvalues
+    H_abs_inv = U @ np.diag(1/(np.abs(evals) + lam)) @ U.T.conj()
 
     Delta = (H_abs_inv@G)[:nt]
-    Delta = Delta - Y*(Y.T.conj()@Delta+Delta.T.conj()@Y) / \
-        2  # Projection onto tangent space
+    # Projection onto tangent space
+    Delta = Delta - Y * (Y.T.conj() @ Delta + Delta.T.conj() @ Y) / 2
     res = minimize(lineobjf_B_geodesic, 1e-9, args=(Delta, X, E,
                    B, J, y), method='COBYLA', options={'maxiter': 20})
     a = res.x
@@ -217,7 +235,7 @@ def B_SFN_riem_Hess(K, A, B, y, J, length, d, r, rK, n_povm, lam=1e-3):
     return B_new
 
 
-def gd(K, E, rho, y, J, length, d, r, rK, fixed_gates, ls='COBYLA', ):
+def gd(K, E, rho, y, J, length, d, r, rK, fixed_gates, ls='COBYLA'):
     """Do Riemannian gradient descent optimization step on gates
 
     Parameters
@@ -256,28 +274,29 @@ def gd(K, E, rho, y, J, length, d, r, rK, fixed_gates, ls='COBYLA', ):
     """
     # setup
     pdim = int(np.sqrt(r))
-    n = rK*pdim
+    n = rK * pdim
     Delta = np.zeros((d, n, pdim)).astype(np.complex128)
-    X = np.einsum('ijkl,ijnm -> iknlm', K, K.conj()).reshape(d, r, r)
+    X = np.einsum("ijkl,ijnm -> iknlm", K, K.conj()).reshape(d, r, r)
 
     dK_ = dK(X, K, E, rho, J, y, d, r, rK)
     for k in np.where(~fixed_gates)[0]:
         # derivative
         Fy = dK_[k].reshape(n, pdim)
         Y = K[k].reshape(n, pdim)
-        rGrad = Fy.conj() - Y@Fy.T@Y  # Riem. gradient taken from conjugate derivative
+        # Riem. gradient taken from conjugate derivative
+        rGrad = (Fy.conj() - Y @ Fy.T @ Y)
         Delta[k] = rGrad
-        
+
     Delta = tangent_proj(K, Delta, d, rK)
-    res = minimize(lineobjf_isom_geodesic, 1e-8, args=(Delta, K,
-                   E, rho, J, y), method=ls, options={'maxiter': 200})
+    res = minimize(lineobjf_isom_geodesic, 1e-8, args=(Delta, K, E, rho, J, y),
+                   method=ls, options={"maxiter": 200})
     a = res.x
     K_new = update_K_geodesic(K, Delta, a)
 
     return K_new
 
 
-def SFN_riem_Hess(K, E, rho, y, J, length, d, r, rK, lam=1e-3, ls='COBYLA', fixed_gates = []):
+def SFN_riem_Hess(K, E, rho, y, J, length, d, r, rK, lam=1e-3, ls="COBYLA", fixed_gates=[]):
     """Riemannian saddle free Newton step on each gate individually
 
     Parameters
@@ -314,38 +333,47 @@ def SFN_riem_Hess(K, E, rho, y, J, length, d, r, rK, lam=1e-3, ls='COBYLA', fixe
     """
     # setup
     pdim = int(np.sqrt(r))
-    n = rK*pdim
-    nt = rK*r
-    H = np.zeros((2*nt, 2*nt)).astype(np.complex128)
-    P_T = np.zeros((2*nt, 2*nt)).astype(np.complex128)
+    n = rK * pdim
+    nt = rK * r
+    H = np.zeros((2 * nt, 2 * nt)).astype(np.complex128)
+    P_T = np.zeros((2 * nt, 2 * nt)).astype(np.complex128)
     Delta_K = np.zeros((d, rK, pdim, pdim)).astype(np.complex128)
-    X = np.einsum('ijkl,ijnm -> iknlm', K, K.conj()).reshape(d, r, r)
+    X = np.einsum("ijkl,ijnm -> iknlm", K, K.conj()).reshape(d, r, r)
 
     # compute derivatives
     dK_, dM10, dM11 = dK_dMdM(X, K, E, rho, J, y, d, r, rK)
     dd, dconjd = ddM(X, K, E, rho, J, y, d, r, rK)
 
     # Second derivatives
-    Fyconjy = dM11.reshape(
-        d, nt, d, nt) + np.einsum('ijklmnop->ikmojlnp', dconjd).reshape(d, nt, d, nt)
-    Fyy = dM10.reshape(d, nt, d, nt) + \
-        np.einsum('ijklmnop->ikmojlnp', dd).reshape(d, nt, d, nt)
-    
+    Fyconjy = dM11.reshape(d, nt, d, nt) + np.einsum(
+        "ijklmnop->ikmojlnp", dconjd).reshape(d, nt, d, nt)
+    Fyy = dM10.reshape(d, nt, d, nt) + np.einsum(
+        "ijklmnop->ikmojlnp", dd).reshape(d, nt, d, nt)
+
     for k in np.where(~fixed_gates)[0]:
         Fy = dK_[k].reshape(n, pdim)
         Y = K[k].reshape(n, pdim)
-        rGrad = Fy.conj() - Y@Fy.T@Y  # riemannian gradient, taken from conjugate derivative
+        # riemannian gradient, taken from conjugate derivative
+        rGrad = (Fy.conj() - Y @ Fy.T @ Y)
         G = np.array([rGrad, rGrad.conj()]).reshape(-1)
 
-        P = np.eye(n) - Y@Y.T.conj()
+        P = np.eye(n) - Y @ Y.T.conj()
         T = transp(n, pdim)
 
         # Riemannian Hessian with correction terms
-        H00 = -(np.kron(Y, Y.T))@T@Fyy[k, :, k, :].T + Fyconjy[k, :, k, :].T.conj() - (np.kron(
-            np.eye(n), Y.T@Fy))/2 - (np.kron(Y@Fy.T, np.eye(pdim)))/2 - (np.kron(
-                P, Fy.T.conj()@Y.conj()))/2
-        H01 = Fyy[k, :, k, :].T.conj() - np.kron(Y, Y.T)@T@Fyconjy[k, :, k, :].T + \
-            (np.kron(Fy.conj(), Y.T)@T)/2 + (np.kron(Y, Fy.T.conj())@T)/2
+        H00 = (
+            -(np.kron(Y, Y.T)) @ T @ Fyy[k, :, k, :].T
+            + Fyconjy[k, :, k, :].T.conj()
+            - (np.kron(np.eye(n), Y.T @ Fy)) / 2
+            - (np.kron(Y @ Fy.T, np.eye(pdim))) / 2
+            - (np.kron(P, Fy.T.conj() @ Y.conj())) / 2
+        )
+        H01 = (
+            Fyy[k, :, k, :].T.conj()
+            - np.kron(Y, Y.T) @ T @ Fyconjy[k, :, k, :].T
+            + (np.kron(Fy.conj(), Y.T) @ T) / 2
+            + (np.kron(Y, Fy.T.conj()) @ T) / 2
+        )
 
         H[:nt, :nt] = H00
         H[:nt, nt:] = H01
@@ -353,30 +381,30 @@ def SFN_riem_Hess(K, E, rho, y, J, length, d, r, rK, lam=1e-3, ls='COBYLA', fixe
         H[nt:, nt:] = H[:nt, :nt].conj()
 
         # Tangent space projection
-        P_T[:nt, :nt] = np.eye(nt) - np.kron(Y@Y.T.conj(), np.eye(pdim))/2
-        P_T[:nt, nt:] = - np.kron(Y, Y.T)@T/2
+        P_T[:nt, :nt] = np.eye(nt) - np.kron(Y @ Y.T.conj(), np.eye(pdim)) / 2
+        P_T[:nt, nt:] = -np.kron(Y, Y.T) @ T / 2
         P_T[nt:, :nt] = P_T[:nt, nt:].conj()
         P_T[nt:, nt:] = P_T[:nt, :nt].conj()
 
-        H = H@P_T
+        H = H @ P_T
 
         # saddle free newton method
         evals, S = eig(H)
 
-        H_abs_inv = S@np.diag(1/(np.abs(evals) + lam))@la.inv(S)
-        Delta_K[k] = ((H_abs_inv@G)[:nt]).reshape(rK, pdim, pdim)
-        
+        H_abs_inv = S @ np.diag(1 / (np.abs(evals) + lam)) @ la.inv(S)
+        Delta_K[k] = ((H_abs_inv @ G)[:nt]).reshape(rK, pdim, pdim)
+
     Delta = tangent_proj(K, Delta_K, d, rK)
 
-    res = minimize(lineobjf_isom_geodesic, 1e-8, args=(Delta, K,
-                   E, rho, J, y), method=ls, options={'maxiter': 200})
+    res = minimize(lineobjf_isom_geodesic, 1e-8, args=(Delta, K, E, rho, J, y),
+                   method=ls, options={"maxiter": 200})
     a = res.x
     K_new = update_K_geodesic(K, Delta, a)
 
     return K_new
 
 
-def SFN_riem_Hess_full(K, E, rho, y, J, length, d, r, rK, lam=1e-3, ls='COBYLA'):
+def SFN_riem_Hess_full(K, E, rho, y, J, length, d, r, rK, lam=1e-3, ls="COBYLA"):
     """Riemannian saddle free Newton step on product manifold of all gates
 
     Parameters
@@ -412,38 +440,46 @@ def SFN_riem_Hess_full(K, E, rho, y, J, length, d, r, rK, lam=1e-3, ls='COBYLA')
         Updated Kraus parametrizations
     """
     pdim = int(np.sqrt(r))
-    n = rK*pdim
-    nt = rK*r
+    n = rK * pdim
+    nt = rK * r
     H = np.zeros((2, d, nt, 2, d, nt)).astype(np.complex128)
     P_T = np.zeros((2, d, nt, 2, d, nt)).astype(np.complex128)
     G = np.zeros((2, d, nt)).astype(np.complex128)
-    X = np.einsum('ijkl,ijnm -> iknlm', K, K.conj()).reshape(d, r, r)
+    X = np.einsum("ijkl,ijnm -> iknlm", K, K.conj()).reshape(d, r, r)
 
     # compute derivatives
     dK_, dM10, dM11 = dK_dMdM(X, K, E, rho, J, y, d, r, rK)
     dd, dconjd = ddM(X, K, E, rho, J, y, d, r, rK)
 
     # Second derivatives
-    Fyconjy = dM11.reshape(
-        d, nt, d, nt) + np.einsum('ijklmnop->ikmojlnp', dconjd).reshape(d, nt, d, nt)
-    Fyy = dM10.reshape(d, nt, d, nt) + \
-        np.einsum('ijklmnop->ikmojlnp', dd).reshape(d, nt, d, nt)
+    Fyconjy = dM11.reshape(d, nt, d, nt) + np.einsum(
+        "ijklmnop->ikmojlnp", dconjd).reshape(d, nt, d, nt)
+    Fyy = dM10.reshape(d, nt, d, nt) + np.einsum(
+        "ijklmnop->ikmojlnp", dd).reshape(d, nt, d, nt)
 
     for k in range(d):
         Fy = dK_[k].reshape(n, pdim)
         Y = K[k].reshape(n, pdim)
-        rGrad = Fy.conj() - Y@Fy.T@Y
+        rGrad = Fy.conj() - Y @ Fy.T @ Y
 
         G[0, k, :] = rGrad.reshape(-1)
         G[1, k, :] = rGrad.conj().reshape(-1)
 
-        P = np.eye(n) - Y@Y.T.conj()
+        P = np.eye(n) - Y @ Y.T.conj()
         T = transp(n, pdim)
-        H00 = -(np.kron(Y, Y.T))@T@Fyy[k, :, k, :].T + Fyconjy[k, :, k, :].T.conj() - (np.kron(
-            np.eye(n), Y.T@Fy))/2 - (np.kron(Y@Fy.T, np.eye(pdim)))/2 - (np.kron(
-                P, Fy.T.conj()@Y.conj()))/2
-        H01 = Fyy[k, :, k, :].T.conj() - np.kron(Y, Y.T)@T@Fyconjy[k, :, k, :].T + \
-            (np.kron(Fy.conj(), Y.T)@T)/2 + (np.kron(Y, Fy.T.conj())@T)/2
+        H00 = (
+            -(np.kron(Y, Y.T)) @ T @ Fyy[k, :, k, :].T
+            + Fyconjy[k, :, k, :].T.conj()
+            - (np.kron(np.eye(n), Y.T @ Fy)) / 2
+            - (np.kron(Y @ Fy.T, np.eye(pdim))) / 2
+            - (np.kron(P, Fy.T.conj() @ Y.conj())) / 2
+        )
+        H01 = (
+            Fyy[k, :, k, :].T.conj()
+            - np.kron(Y, Y.T) @ T @ Fyconjy[k, :, k, :].T
+            + (np.kron(Fy.conj(), Y.T) @ T) / 2
+            + (np.kron(Y, Fy.T.conj()) @ T) / 2
+        )
 
         # Riemannian Hessian with correction terms
         H[0, k, :, 0, k, :] = H00
@@ -452,42 +488,41 @@ def SFN_riem_Hess_full(K, E, rho, y, J, length, d, r, rK, lam=1e-3, ls='COBYLA')
         H[1, k, :, 1, k, :] = H00.conj()
 
         # Tangent space projection
-        P_T[0, k, :, 0, k, :] = np.eye(
-            nt) - np.kron(Y@Y.T.conj(), np.eye(pdim))/2
-        P_T[0, k, :, 1, k, :] = - np.kron(Y, Y.T)@T/2
+        P_T[0, k, :, 0, k, :] = np.eye(nt) - np.kron(Y @ Y.T.conj(), np.eye(pdim)) / 2
+        P_T[0, k, :, 1, k, :] = -np.kron(Y, Y.T) @ T / 2
         P_T[1, k, :, 0, k, :] = P_T[0, k, :, 1, k, :].conj()
         P_T[1, k, :, 1, k, :] = P_T[0, k, :, 0, k, :].conj()
 
         for k2 in range(d):
             if k2 != k:
                 Yk2 = K[k2].reshape(n, pdim)
-                H[0, k2, :, 0, k, :] = Fyconjy[k, :, k2, :].T.conj(
-                )-np.kron(Yk2, Yk2.T)@T@Fyy[k, :, k2, :].T
-                H[0, k2, :, 1, k, :] = Fyy[k, :, k2, :].T.conj(
-                )-np.kron(Yk2, Yk2.T)@T@Fyconjy[k, :, k2, :].T
+                H[0, k2, :, 0, k, :] = (Fyconjy[k, :, k2, :].T.conj()
+                                        - np.kron(Yk2, Yk2.T) @ T @ Fyy[k, :, k2, :].T)
+                H[0, k2, :, 1, k, :] = (Fyy[k, :, k2, :].T.conj()
+                                        - np.kron(Yk2, Yk2.T) @ T @ Fyconjy[k, :, k2, :].T)
                 H[1, k2, :, 0, k, :] = H[0, k2, :, 1, k, :].conj()
                 H[1, k2, :, 1, k, :] = H[0, k2, :, 0, k, :].conj()
 
-    H = H.reshape(2*d*nt, -1)@P_T.reshape(2*d*nt, -1)
+    H = H.reshape(2 * d * nt, -1) @ P_T.reshape(2 * d * nt, -1)
 
     # application of saddle free newton method
-    H = (H + H.T.conj())/2
+    H = (H + H.T.conj()) / 2
     evals, U = eigh(H)
-    
-    #Disregarding gauge directions (zero eigenvalues of the Hessian)
+
+    # Disregarding gauge directions (zero eigenvalues of the Hessian)
     # inv_diag = evals.copy()
     # inv_diag[np.abs(evals)<1e-14] = 1
     # inv_diag[np.abs(evals)>1e-14] = np.abs(inv_diag[np.abs(evals)>1e-14]) + lam
-    # H_abs_inv = U@np.diag(1/inv_diag)@U.T.conj()    
+    # H_abs_inv = U@np.diag(1/inv_diag)@U.T.conj()
 
-    H_abs_inv = U@np.diag(1/(np.abs(evals) + lam))@U.T.conj() # Damping all eigenvalues
-    
-    Delta_K = ((H_abs_inv@G.reshape(-1))[:d*nt]).reshape(d, rK, pdim, pdim)
+    # Damping all eigenvalues
+    H_abs_inv = (U @ np.diag(1 / (np.abs(evals) + lam)) @ U.T.conj())
+    Delta_K = ((H_abs_inv @ G.reshape(-1))[: d * nt]).reshape(d, rK, pdim, pdim)
 
     # Delta_K is already in tangent space but not to sufficient numerical accuracy
     Delta = tangent_proj(K, Delta_K, d, rK)
-    res = minimize(lineobjf_isom_geodesic, 1e-8, args=(Delta, K,
-                   E, rho, J, y), method=ls, options={'maxiter': 20})
+    res = minimize(lineobjf_isom_geodesic, 1e-8, args=(Delta, K, E, rho, J, y),
+                   method=ls, options={"maxiter": 20})
     a = res.x
     K_new = update_K_geodesic(K, Delta, a)
     return K_new
@@ -541,39 +576,42 @@ def optimize(y, J, length, d, r, rK, n_povm, method, K, rho, A, B, fixed_element
     B_new : numpy array
         Updated initial state parametrization
     """
-    if 'E' in fixed_elements:
+    if "E" in fixed_elements:
         A_new = A
-        E_new = np.array([(A_new[i].T.conj()@A_new[i]).reshape(-1) for i in range(n_povm)])
+        E_new = np.array([(A_new[i].T.conj() @ A_new[i]).reshape(-1) for i in range(n_povm)])
     else:
         A_new = A_SFN_riem_Hess(K, A, B, y, J, length, d, r, rK, n_povm)
-        E_new = np.array([(A_new[i].T.conj()@A_new[i]).reshape(-1) for i in range(n_povm)])
-        
-    if any([('G%i'%i in fixed_elements) for i in range(d)]):
-        fixed_gates = np.array([('G%i'%i in fixed_elements) for i in range(d)])
-        if method == 'SFN':
-            K_new = SFN_riem_Hess(K, E_new, rho, y, J, length, d, r, rK, lam=1e-3, ls='COBYLA', fixed_gates = fixed_gates)
-        elif method == 'GD':
-            K_new = gd(K, E_new, rho, y, J, length, d, r, rK, ls='COBYLA', fixed_gates = fixed_gates)        
+        E_new = np.array([(A_new[i].T.conj() @ A_new[i]).reshape(-1) for i in range(n_povm)])
+
+    if any([("G%i" % i in fixed_elements) for i in range(d)]):
+        fixed_gates = np.array([("G%i" % i in fixed_elements) for i in range(d)])
+        if method == "SFN":
+            K_new = SFN_riem_Hess(K, E_new, rho, y, J, length, d, r, rK,
+                                  lam=1e-3, ls="COBYLA", fixed_gates=fixed_gates)
+        elif method == "GD":
+            K_new = gd(K, E_new, rho, y, J, length, d, r, rK,
+                       ls="COBYLA", fixed_gates=fixed_gates)
     else:
-        if method == 'SFN':
-            K_new = SFN_riem_Hess_full(K, E_new, rho, y, J, length, d, r, rK, lam=1e-3, ls='COBYLA')
-        elif method == 'GD':
-            fixed_gates = np.array([('G%i'%i in fixed_elements) for i in range(d)])
-            K_new = gd(K, E_new, rho, y, J, length, d, r, rK, fixed_gates = fixed_gates, ls='COBYLA')
-        
-    if 'rho' in fixed_elements:
+        if method == "SFN":
+            K_new = SFN_riem_Hess_full(K, E_new, rho, y, J, length, d, r, rK,
+                                       lam=1e-3, ls="COBYLA")
+        elif method == "GD":
+            fixed_gates = np.array([("G%i" % i in fixed_elements) for i in range(d)])
+            K_new = gd(K, E_new, rho, y, J, length, d, r, rK,
+                       fixed_gates=fixed_gates, ls="COBYLA")
+
+    if "rho" in fixed_elements:
         rho_new = rho
         B_new = B
     else:
         B_new = B_SFN_riem_Hess(K_new, A_new, B, y, J, length, d, r, rK, n_povm, lam=1e-3)
-        rho_new = (B_new@B_new.T.conj()).reshape(-1)
-    X_new = np.einsum('ijkl,ijnm -> iknlm', K_new, K_new.conj()).reshape(d, r, r)
+        rho_new = (B_new @ B_new.T.conj()).reshape(-1)
+    X_new = np.einsum("ijkl,ijnm -> iknlm", K_new, K_new.conj()).reshape(d, r, r)
     return K_new, X_new, E_new, rho_new, A_new, B_new
 
 
-def run_mGST(*args, method='SFN', max_inits=10,
-             max_iter=200, final_iter=70, target_rel_prec=1e-4, threshold_multiplier=3,
-             fixed_elements = [], init=[], testing=False):
+def run_mGST(*args, method="SFN", max_inits=10, max_iter=200, final_iter=70, target_rel_prec=1e-4,
+             threshold_multiplier=3, fixed_elements=[], init=[], testing=False):
     """Main mGST routine
 
     Parameters
@@ -599,8 +637,6 @@ def run_mGST(*args, method='SFN', max_inits=10,
         Number of samples taken per gate sequence to obtain measurement array y
     method : {"SFN", "GD"}
         Optimization method, Default: "SFN"
-    max_reruns : int
-        Maximum number or reinitializations; Default: 10
     max_iter : int
         Maximum number of iterations on batches; Default: 200
     final_iter : int
@@ -624,102 +660,103 @@ def run_mGST(*args, method='SFN', max_inits=10,
     res_list : list
         Collected objective function values after each iteration
     """
-    y,J,length,d,r,rK,n_povm, bsize, meas_samples = args
+    y, J, length, d, r, rK, n_povm, bsize, meas_samples = args
     t0 = time.time()
     pdim = int(np.sqrt(r))
-    #stopping criterion (Faktor 3 can be increased if model mismatch is high)
-    delta = threshold_multiplier*(1-y.reshape(-1))@y.reshape(-1)/len(J)/n_povm/meas_samples 
-    
-    if any([('G%i'%i in fixed_elements) for i in range(d)]) and method == 'SFN':
-        warn('The SFN method with fixed gates is currently only implemented via \n'\
-                 'iterative updates over individual gates and might lead to a slower converges \n'\
-                    'compared to the default SFN method.', stacklevel=2)
-    
+    # stopping criterion (Faktor 3 can be increased if model mismatch is high)
+    delta = (threshold_multiplier * (1 - y.reshape(-1)) @ y.reshape(-1) / len(J) / n_povm
+             / meas_samples)
+
+    if any([("G%i" % i in fixed_elements) for i in range(d)]) and method == "SFN":
+        warn("The SFN method with fixed gates is currently only implemented via \n"
+             "iterative updates over individual gates and might lead to a slower converges \n"
+             "compared to the default SFN method.", stacklevel=2)
+
     if init:
         K = init[0]
-        E = init[1] 
-        #offset small negative eigenvalues for stability
-        rho = init[2]+1e-14*np.eye(pdim).reshape(-1)
-        A = np.array([la.cholesky(E[k].reshape(pdim,pdim)+1e-14*np.eye(pdim)).T.conj()
-                      for k in range(n_povm)]) 
+        E = init[1]
+        # offset small negative eigenvalues for stability
+        rho = init[2] + 1e-14 * np.eye(pdim).reshape(-1)
+        A = np.array([la.cholesky(E[k].reshape(pdim, pdim) + 1e-14 * np.eye(pdim)).T.conj()
+                      for k in range(n_povm)])
         B = la.cholesky(rho.reshape(pdim, pdim))
-        X = np.einsum('ijkl,ijnm -> iknlm', K, K.conj()).reshape(d, r, r)  
-        res_list = [objf(X,E,rho,J,y)]
-        max_reruns = 1
-        i=0
+        X = np.einsum("ijkl,ijnm -> iknlm", K, K.conj()).reshape(d, r, r)
+        res_list = [objf(X, E, rho, J, y)]
+        i = 0
 
     success = 0
-    print('Starting optimization...')
+    print("Starting optimization...")
     if not init:
         for i in range(max_inits):
             K, X, E, rho = random_gs(d, r, rK, n_povm)
-            A = np.array([la.cholesky(E[k].reshape(pdim,pdim)+1e-14*np.eye(pdim)).T.conj()
-                      for k in range(n_povm)]) 
-            B = la.cholesky(rho.reshape(pdim,pdim))
-            res_list = [objf(X,E,rho,J,y)]
+            A = np.array([la.cholesky(E[k].reshape(pdim, pdim) + 1e-14 * np.eye(pdim)).T.conj()
+                          for k in range(n_povm)])
+            B = la.cholesky(rho.reshape(pdim, pdim))
+            res_list = [objf(X, E, rho, J, y)]
             for j in tqdm(range(max_iter), file=sys.stdout):
-                yb,Jb = batch(y, J, bsize)
-                K, X, E, rho, A, B = optimize(
-                    yb, Jb, length, d, r, rK, n_povm, method, K, rho, A, B, fixed_elements)
-                res_list.append(objf(X, E, rho, J, y)) 
+                yb, Jb = batch(y, J, bsize)
+                K, X, E, rho, A, B = optimize(yb, Jb, length, d, r, rK, n_povm, method,
+                                              K, rho, A, B, fixed_elements)
+                res_list.append(objf(X, E, rho, J, y))
                 if res_list[-1] < delta:
                     success = 1
-                    break  
+                    break
             if testing:
                 plt.semilogy(res_list)
-                plt.ylabel('Objective function for batch optimization')
-                plt.xlabel('Iterations')
-                plt.axhline(delta, color = "green", label = "conv. threshold")
+                plt.ylabel("Objective function for batch optimization")
+                plt.xlabel("Iterations")
+                plt.axhline(delta, color="green", label="conv. threshold")
                 plt.legend()
                 plt.show()
             if success == 1:
-                print('Initialization successful, improving estimate over full data....')
-                break 
-            if i+1 < max_inits:
-                print('Run ', i, 'failed, trying new initialization...')
+                print("Initialization successful, improving estimate over full data....")
+                break
+            if i + 1 < max_inits:
+                print("Run ", i, "failed, trying new initialization...")
             else:
-                print('Maximum number of reinitializations reached without attaining success',
-                      'threshold, attempting optimization over full data set...')
-    elif init and max_iter>0:
+                print(
+                    "Maximum number of reinitializations reached without attaining success",
+                    "threshold, attempting optimization over full data set...")
+    elif init and max_iter > 0:
         for j in tqdm(range(max_iter), file=sys.stdout):
             yb, Jb = batch(y, J, bsize)
-            K, X, E, rho, A, B = optimize(yb, Jb, length, d, r, rK, n_povm, method, K, rho, A, B, fixed_elements)
-            res_list.append(objf(X ,E, rho, J, y)) 
+            K, X, E, rho, A, B = optimize(yb, Jb, length, d, r, rK, n_povm, method,
+                                          K, rho, A, B, fixed_elements)
+            res_list.append(objf(X, E, rho, J, y))
             if res_list[-1] < delta:
                 success = 1
                 break
         if testing:
             plt.semilogy(res_list)
-            plt.ylabel('Objective function over batches and full data')
-            plt.xlabel('Iterations')
-            plt.axhline(delta, color = "green", label = "conv. threshold")
+            plt.ylabel("Objective function over batches and full data")
+            plt.xlabel("Iterations")
+            plt.axhline(delta, color="green", label="conv. threshold")
             plt.legend()
             plt.show()
         if success == 1:
-            print('Optimization successful, improving estimate over full data....')
-        else: 
-            print('Success threshold not reached, attempting optimization over full data set...')
+            print("Optimization successful, improving estimate over full data....")
+        else:
+            print("Success threshold not reached, attempting optimization over full data set...")
     for n in tqdm(range(final_iter), file=sys.stdout):
-        K, X, E, rho, A, B = optimize(y, J, length, d, r, rK, n_povm, method, K, rho, A, B, fixed_elements)
+        K, X, E, rho, A, B = optimize(y, J, length, d, r, rK, n_povm, method,
+                                      K, rho, A, B, fixed_elements)
         res_list.append(objf(X, E, rho, J, y))
-        if np.abs(res_list[-2]-res_list[-1])<delta*target_rel_prec:
+        if np.abs(res_list[-2] - res_list[-1]) < delta * target_rel_prec:
             break
     if testing:
         plt.semilogy(res_list)
-        plt.ylabel('Objective function over batches and full data')
-        plt.xlabel('Iterations')
-        plt.axhline(delta, color = "green", label = "conv. threshold")
+        plt.ylabel("Objective function over batches and full data")
+        plt.xlabel("Iterations")
+        plt.axhline(delta, color="green", label="conv. threshold")
         plt.legend()
         plt.show()
-    print('#################')
+    print("#################")
     if success == 1 or (res_list[-1] < delta):
-        print('\t Convergence criterion satisfied')
-    else: 
-        print('\t Convergence criterion not satisfied,',
-              'try increasing max_iter or using new initializations.')
-    print('\t Final objective function value',res_list[-1],
-          'with # of initializations: %i'%(i+1),
-         '\n \t Total runtime:',time.time()-t0)
+        print("\t Convergence criterion satisfied")
+    else:
+        print("\t Convergence criterion not satisfied,",
+              "try increasing max_iter or using new initializations.")
+    print("\t Final objective function value", res_list[-1],
+          "with # of initializations: %i" % (i + 1), "\n \t Total runtime:",
+          time.time() - t0)
     return K, X, E, rho, res_list
-
-

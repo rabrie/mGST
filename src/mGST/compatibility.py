@@ -5,7 +5,7 @@ from pygsti.baseobjs import Label
 from pygsti.tools import change_basis
 
 
-def pygsti_model_to_arrays(model, basis='pp'):
+def pygsti_model_to_arrays(model, basis="pp"):
     """Turn the gate set of a pygsti model into numpy arrays used by mGST.
 
     Parameters
@@ -27,20 +27,20 @@ def pygsti_model_to_arrays(model, basis='pp'):
         Initial state vector of shape (dimension^2)
     """
     X = []
-    op_Labels = [label for label in model.__dict__['operations'].keys()]
-    effect_Labels = [label for label in model['Mdefault'].keys()]
-    E = np.array([model['Mdefault'][label].to_dense().reshape(-1)
-                 for label in effect_Labels])
-    rho = model['rho0'].to_dense().reshape(-1)
+    op_Labels = [label for label in model.__dict__["operations"].keys()]
+    effect_Labels = [label for label in model["Mdefault"].keys()]
+    E = np.array([model["Mdefault"][label].to_dense().reshape(-1) for label in effect_Labels])
+    rho = model["rho0"].to_dense().reshape(-1)
     for op_Label in op_Labels:
         X.append(model[op_Label].to_dense())
-    if basis == 'pp':
-        return np.array(X).astype(np.complex128), E.astype(np.complex128), rho.astype(np.complex128)
-    if basis == 'std':
+    if basis == "pp":
+        return (np.array(X).astype(np.complex128), E.astype(np.complex128),
+                rho.astype(np.complex128))
+    if basis == "std":
         return pp2std(np.array(X), E, rho)
 
 
-def average_gate_fidelities(model1, model2, pdim, basis_string='pp'):
+def average_gate_fidelities(model1, model2, pdim, basis_string="pp"):
     """Return the average gate fidelities between gates of two pygsti models.
 
     Parameters
@@ -61,13 +61,14 @@ def average_gate_fidelities(model1, model2, pdim, basis_string='pp'):
         Array containing the average gate fidelities for all gates
     """
     ent_fids = []
-    basis = pygsti.baseobjs.Basis.cast(basis_string,pdim**2)
-    labels1 = [label for label in model1.__dict__['operations'].keys()]
-    labels2 = [label for label in model2.__dict__['operations'].keys()]
+    basis = pygsti.baseobjs.Basis.cast(basis_string, pdim**2)
+    labels1 = [label for label in model1.__dict__["operations"].keys()]
+    labels2 = [label for label in model2.__dict__["operations"].keys()]
 
     for i in range(len(labels1)):
-        ent_fids.append(float(rptbl.entanglement_fidelity(model1[labels1[i]], model2[labels2[i]], basis)))
-    fidelities = (np.array(ent_fids)*pdim+1)/(pdim+1)
+        ent_fids.append(float(rptbl.entanglement_fidelity(
+            model1[labels1[i]], model2[labels2[i]], basis)))
+    fidelities = (np.array(ent_fids) * pdim + 1) / (pdim + 1)
     return fidelities
 
 
@@ -88,17 +89,17 @@ def model_agfs(model, pdim):
     """
     ent_fids = []
     basis = pygsti.obj.Basis.cast("pp", pdim**2)
-    labels = [label for label in model.__dict__['operations'].keys()]
+    labels = [label for label in model.__dict__["operations"].keys()]
     for i in range(len(labels)):
         for j in range(len(labels)):
             if j > i:
                 ent_fids.append(float(rptbl.entanglement_fidelity(
                     model[labels[i]], model[labels[j]], basis)))
-    fidelities = (np.array(ent_fids)*pdim+1)/(pdim+1)
+    fidelities = (np.array(ent_fids) * pdim + 1) / (pdim + 1)
     return fidelities
 
 
-def arrays_to_pygsti_model(X, E, rho, basis='std'):
+def arrays_to_pygsti_model(X, E, rho, basis="std"):
     """Turns a gate set given by numpy arrays into a pygsti model
 
     pygsti model is by default in Pauli-basis
@@ -124,17 +125,18 @@ def arrays_to_pygsti_model(X, E, rho, basis='std'):
     pdim = int(np.sqrt(len(rho)))
     Id = np.zeros(pdim**2)
     Id[0] = 1
-    effect_label_str = ['%i' % k for k in range(E.shape[0])]
-    if basis == 'std':
+    effect_label_str = ["%i" % k for k in range(E.shape[0])]
+    if basis == "std":
         X, E, rho = std2pp(X, E, rho)
-    mdl_out = pygsti.models.modelconstruction.create_explicit_model_from_expressions( 
-        [i for i in range(int(np.log(pdim)/np.log(2)))],[Label('G%i'%i) for i in range(d)], 
-        [':'.join(['I(%i)'%i for i in range(int(np.log(pdim)/np.log(2)))]) for l in range(d)],
-        effect_labels=effect_label_str)
-    mdl_out['rho0'] = np.real(rho)
-    mdl_out['Mdefault'].from_vector(np.real(E).reshape(-1))
+    mdl_out = pygsti.models.modelconstruction.create_explicit_model_from_expressions(
+        [i for i in range(int(np.log(pdim) / np.log(2)))],
+        [Label("G%i" % i) for i in range(d)],
+        [":".join(["I(%i)" % i for i in range(int(np.log(pdim) / np.log(2)))])
+         for length in range(d)], effect_labels=effect_label_str)
+    mdl_out["rho0"] = np.real(rho)
+    mdl_out["Mdefault"].from_vector(np.real(E).reshape(-1))
     for i in range(d):
-        mdl_out[Label('G%i'%i)] = np.real(X[i])
+        mdl_out[Label("G%i" % i)] = np.real(X[i])
     return mdl_out
 
 
@@ -161,12 +163,10 @@ def std2pp(X, E, rho):
     rhopp : numpy array
         Initial state vector of shape (dimension^2) in Pauli basis
     """
-    Xpp = np.array([np.array(change_basis(X[i], 'std', 'pp'))
-                   for i in range(X.shape[0])])
-    Epp = np.array([np.array(change_basis(E[i], 'std', 'pp'))
-                   for i in range(E.shape[0])])
+    Xpp = np.array([np.array(change_basis(X[i], "std", "pp")) for i in range(X.shape[0])])
+    Epp = np.array([np.array(change_basis(E[i], "std", "pp")) for i in range(E.shape[0])])
     return (Xpp.astype(np.complex128), Epp.astype(np.complex128),
-            change_basis(rho, 'std', 'pp').astype(np.complex128))
+            change_basis(rho, "std", "pp").astype(np.complex128))
 
 
 def pp2std(X, E, rho):
@@ -192,12 +192,10 @@ def pp2std(X, E, rho):
     rhostd : numpy array
         Initial state vector of shape (dimension^2) in standard
     """
-    Xstd = np.array([np.array(change_basis(X[i], 'pp', 'std'))
-                    for i in range(X.shape[0])])
-    Estd = np.array([np.array(change_basis(E[i], 'pp', 'std'))
-                    for i in range(E.shape[0])])
+    Xstd = np.array([np.array(change_basis(X[i], "pp", "std")) for i in range(X.shape[0])])
+    Estd = np.array([np.array(change_basis(E[i], "pp", "std")) for i in range(E.shape[0])])
     return (Xstd.astype(np.complex128), Estd.astype(np.complex128),
-            change_basis(rho, 'pp', 'std').astype(np.complex128))
+            change_basis(rho, "pp", "std").astype(np.complex128))
 
 
 def pygstiExp_to_list(model, max_germ_len):
@@ -222,24 +220,23 @@ def pygstiExp_to_list(model, max_germ_len):
     maxLengths = [max_germ_len]
     listOfExperiments = pygsti.circuits.create_lsgst_circuits(
         model.target_model(), prep_fiducials, meas_fiducials, germs, maxLengths)
-    op_Labels = [label for label in model.target_model().__dict__[
-        'operations'].keys()]
+    op_Labels = [label for label in model.target_model().__dict__["operations"].keys()]
     exp_list = []
-    max_length = max([len(x.to_pythonstr(op_Labels))
-                     for x in listOfExperiments])
+    max_length = max([len(x.to_pythonstr(op_Labels)) for x in listOfExperiments])
     for i in range(len(listOfExperiments)):
         exp = listOfExperiments[i].to_pythonstr(op_Labels)
-        gate_numbers = [ord(x)-97 for x in exp.lower()]
-        gate_numbers = np.pad(
-            gate_numbers, (0, max_length-len(gate_numbers)), 'constant', constant_values=-1)
+        gate_numbers = [ord(x) - 97 for x in exp.lower()]
+        gate_numbers = np.pad(gate_numbers, (0, max_length - len(gate_numbers)),
+                              "constant", constant_values=-1)
         exp_list.append(gate_numbers)
 
     J_GST = np.array([[int(exp_list[i][j]) for j in range(max_length)]
-                     for i in range(len(exp_list))])
+                      for i in range(len(exp_list))])
     return J_GST
 
-def diamond_dists(model1,model2,pdim, basis_string = 'pp'): 
-    """ Return the diamond distances between gates of two pygsti models
+
+def diamond_dists(model1, model2, pdim, basis_string="pp"):
+    """Return the diamond distances between gates of two pygsti models
 
     Parameters
     ----------
@@ -249,22 +246,22 @@ def diamond_dists(model1,model2,pdim, basis_string = 'pp'):
         Contains the model parameters in the Pauli transfer matrix formalism
     pdim : int
         physical dimension
-    basis : {'pp','std'} 
+    basis : {'pp','std'}
         The basis in which the input models are gíven. It can be either
         'pp' (Pauli basis) or 'std' (standard basis, Default)
 
     Returns
     -------
     gate_dists : 1D numpy array
-        Array containing the diamond distances for all gates in the order they appear in model1. 
-        
+        Array containing the diamond distances for all gates in the order they appear in model1.
+
     Notes: Models need to have the same gate labels.
     """
     gate_dists = []
-    basis = pygsti.baseobjs.Basis.cast(basis_string,pdim**2)
-    labels1 = [label for label in model1.__dict__['operations'].keys()]
-    labels2 = [label for label in model2.__dict__['operations'].keys()]
+    basis = pygsti.baseobjs.Basis.cast(basis_string, pdim**2)
+    labels1 = [label for label in model1.__dict__["operations"].keys()]
+    labels2 = [label for label in model2.__dict__["operations"].keys()]
     for i in range(len(labels1)):
-        gate_dists.append(
-            float(rptbl.half_diamond_norm(model1[labels1[i]], model2[labels2[i]], basis)))
+        gate_dists.append(float(rptbl.half_diamond_norm(
+            model1[labels1[i]], model2[labels2[i]], basis)))
     return np.array(gate_dists)
