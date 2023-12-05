@@ -17,8 +17,9 @@ def eigy_expm(A):
         Matrix exponential of A
     """
     vals, vects = np.linalg.eig(A)
-    return np.einsum('...ik, ...k, ...kj -> ...ij',
-                     vects, np.exp(vals), np.linalg.inv(vects))
+    return np.einsum(
+        "...ik, ...k, ...kj -> ...ij", vects, np.exp(vals), np.linalg.inv(vects)
+    )
 
 
 def tangent_proj(K, Z, d, rK):
@@ -44,12 +45,12 @@ def tangent_proj(K, Z, d, rK):
         The projection is done with respect to the canonical metrik.
     """
     pdim = K.shape[2]
-    n = pdim*rK
+    n = pdim * rK
     K = K.reshape(d, n, pdim)
     Z = Z.reshape(d, n, pdim)
     G = np.ascontiguousarray(np.zeros((d, n, pdim)).astype(np.complex128))
     for i in range(d):
-        G[i] += Z[i] - (K[i]@K[i].T.conj()@Z[i]+K[i]@Z[i].T.conj()@K[i])/2
+        G[i] += Z[i] - (K[i] @ K[i].T.conj() @ Z[i] + K[i] @ Z[i].T.conj() @ K[i]) / 2
     return G
 
 
@@ -77,17 +78,17 @@ def update_K_geodesic(K, H, a):
     d = K.shape[0]
     rK = K.shape[1]
     pdim = K.shape[2]
-    n = pdim*rK
+    n = pdim * rK
     K = K.reshape(d, n, pdim)
     K_new = K.copy()
-    AR_mat = np.zeros((2*pdim, 2*pdim)).astype(np.complex128)
+    AR_mat = np.zeros((2 * pdim, 2 * pdim)).astype(np.complex128)
     for i in range(d):
-        Q, R = np.linalg.qr((np.eye(n)-K[i]@K[i].T.conj())@H[i])
-        AR_mat[:pdim, :pdim] = K[i].T.conj()@H[i]
+        Q, R = np.linalg.qr((np.eye(n) - K[i] @ K[i].T.conj()) @ H[i])
+        AR_mat[:pdim, :pdim] = K[i].T.conj() @ H[i]
         AR_mat[pdim:, :pdim] = R
         AR_mat[:pdim, pdim:] = -R.T.conj()
-        MN = eigy_expm(-a*AR_mat)@np.eye(2*pdim, pdim)
-        K_new[i] = K[i]@MN[:pdim, :] + Q@MN[pdim:, :]
+        MN = eigy_expm(-a * AR_mat) @ np.eye(2 * pdim, pdim)
+        K_new[i] = K[i] @ MN[:pdim, :] + Q @ MN[pdim:, :]
     return K_new.reshape(d, rK, pdim, pdim)
 
 
@@ -121,8 +122,7 @@ def lineobjf_isom_geodesic(a, H, K, E, rho, J, y):
     pdim = K.shape[2]
     r = pdim**2
     K_test = update_K_geodesic(K, H, a)
-    X_test = np.einsum('ijkl,ijnm -> iknlm', K_test,
-                       K_test.conj()).reshape(d, r, r)
+    X_test = np.einsum("ijkl,ijnm -> iknlm", K_test, K_test.conj()).reshape(d, r, r)
     return objf(X_test, E, rho, J, y)
 
 
@@ -145,17 +145,17 @@ def update_A_geodesic(A, H, a):
     """
     n_povm = A.shape[0]
     pdim = A.shape[1]
-    n = pdim*n_povm
+    n = pdim * n_povm
     A = A.reshape(n, pdim)
     H = H.reshape(n, pdim)
     A_new = A.copy()
-    AR_mat = np.zeros((2*pdim, 2*pdim)).astype(np.complex128)
-    Q, R = np.linalg.qr((np.eye(n)-A@A.T.conj())@H)
-    AR_mat[:pdim, :pdim] = A.T.conj()@H
+    AR_mat = np.zeros((2 * pdim, 2 * pdim)).astype(np.complex128)
+    Q, R = np.linalg.qr((np.eye(n) - A @ A.T.conj()) @ H)
+    AR_mat[:pdim, :pdim] = A.T.conj() @ H
     AR_mat[pdim:, :pdim] = R
     AR_mat[:pdim, pdim:] = -R.T.conj()
-    MN = eigy_expm(-a*AR_mat)@np.eye(2*pdim, pdim)
-    A_new = A@MN[:pdim, :] + Q@MN[pdim:, :]
+    MN = eigy_expm(-a * AR_mat) @ np.eye(2 * pdim, pdim)
+    A_new = A @ MN[:pdim, :] + Q @ MN[pdim:, :]
     return A_new.reshape(n_povm, pdim, pdim)
 
 
@@ -183,13 +183,13 @@ def update_B_geodesic(B, H, a):
     H = H.reshape(n)
     B_temp = B.copy()
     AR_mat = np.zeros((2, 2)).astype(np.complex128)
-    R = np.linalg.norm((np.eye(n)-np.outer(B, B.T.conj()))@H)
-    Q = ((np.eye(n)-np.outer(B, B.T.conj()))@H)/R
-    AR_mat[0, 0] = B.T.conj()@H
+    R = np.linalg.norm((np.eye(n) - np.outer(B, B.T.conj())) @ H)
+    Q = ((np.eye(n) - np.outer(B, B.T.conj())) @ H) / R
+    AR_mat[0, 0] = B.T.conj() @ H
     AR_mat[1, 0] = R
     AR_mat[0, 1] = -R.T.conj()
-    MN = eigy_expm(-a*AR_mat)@np.array([1, 0])
-    B_temp = B*MN[0] + Q*MN[1]
+    MN = eigy_expm(-a * AR_mat) @ np.array([1, 0])
+    B_temp = B * MN[0] + Q * MN[1]
     return B_temp.reshape(pdim, pdim)
 
 
@@ -221,8 +221,9 @@ def lineobjf_A_geodesic(a, H, X, A, rho, J, y):
     """
     n_povm = A.shape[0]
     A_test = update_A_geodesic(A, H, a)
-    E_test = np.array([(A_test[i].T.conj()@A_test[i]).reshape(-1)
-                      for i in range(n_povm)])
+    E_test = np.array(
+        [(A_test[i].T.conj() @ A_test[i]).reshape(-1) for i in range(n_povm)]
+    )
     return objf(X, E_test, rho, J, y)
 
 
@@ -253,7 +254,7 @@ def lineobjf_B_geodesic(a, H, X, E, B, J, y):
         Objective function value at new position along the geodesic
     """
     B_test = update_B_geodesic(B, H, a)
-    rho_test = (B_test@B_test.T.conj()).reshape(-1)
+    rho_test = (B_test @ B_test.T.conj()).reshape(-1)
     return objf(X, E, rho_test, J, y)
 
 
@@ -291,12 +292,12 @@ def lineobjf_A_B(a, v, delta_v, X, C, y, J, argument):
     This function is used for the line search with linear updates v_new = v + a*delta_v,
     where v can be either the POVM estimate or the state estimate.
     """
-    v_test = v - a*delta_v
-    if argument == 'rho':
-        rho_test = (v_test@v_test.T.conj()).reshape(-1)
+    v_test = v - a * delta_v
+    if argument == "rho":
+        rho_test = (v_test @ v_test.T.conj()).reshape(-1)
         return objf(X, C, rho_test, J, y)
-    elif argument == 'E':
-        E_test = (v_test@v_test.T.conj()).reshape(-1)
+    elif argument == "E":
+        E_test = (v_test @ v_test.T.conj()).reshape(-1)
         return objf(X, E_test, C, J, y)
 
 
@@ -326,16 +327,14 @@ def Hess_evals(K, E, rho, y, J):
     rK = K.shape[1]
     pdim = K.shape[2]
     r = pdim**2
-    n = d*rK*r
-    H = np.zeros((2*n, 2*n)).astype(np.complex128)
-    X = np.einsum('ijkl,ijnm -> iknlm', K, K.conj()).reshape(d, r, r)
+    n = d * rK * r
+    H = np.zeros((2 * n, 2 * n)).astype(np.complex128)
+    X = np.einsum("ijkl,ijnm -> iknlm", K, K.conj()).reshape(d, r, r)
     dM10, dM11 = dMdM(X, K, E, rho, J, y, d, r, rK)
     dd, dconjd = ddM(X, K, E, rho, J, y, d, r, rK)
 
-    A00 = dM11.reshape(n, n) + \
-        np.einsum('ijklmnop->ikmojlnp', dconjd).reshape(n, n)
-    A10 = dM10.reshape(n, n) + \
-        np.einsum('ijklmnop->ikmojlnp', dd).reshape(n, n)
+    A00 = dM11.reshape(n, n) + np.einsum("ijklmnop->ikmojlnp", dconjd).reshape(n, n)
+    A10 = dM10.reshape(n, n) + np.einsum("ijklmnop->ikmojlnp", dd).reshape(n, n)
     A11 = A00.conj()
     A01 = A10.conj()
 
