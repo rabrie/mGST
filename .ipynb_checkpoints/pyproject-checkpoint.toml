@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mGST"
+version = "0.2.0"
+authors = [{ name = "Raphael Brieger", email = "brieger@hhu.de" },{ name = "Pau Dietz Romero", email = "" }]
+description = "Gate Set Tomography"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+	"matplotlib",
+    "numpy",
+    "scipy",
+    "pygsti",
+    "tqdm",
+    "numba",
+    "cython"
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
