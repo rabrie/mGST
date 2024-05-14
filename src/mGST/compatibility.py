@@ -1,8 +1,9 @@
 import numpy as np
 import pygsti
-from pygsti.report import reportables as rptbl
 from pygsti.baseobjs import Label
 from pygsti.tools import change_basis
+from pygsti.tools.optools import diamonddist
+from pygsti.report.reportables import entanglement_fidelity
 
 
 def pygsti_model_to_arrays(model, basis='pp'):
@@ -66,7 +67,7 @@ def average_gate_fidelities(model1, model2, pdim, basis_string='pp'):
     labels2 = [label for label in model2.__dict__['operations'].keys()]
 
     for i in range(len(labels1)):
-        ent_fids.append(float(rptbl.entanglement_fidelity(model1[labels1[i]], model2[labels2[i]], basis)))
+        ent_fids.append(float(entanglement_fidelity(model1[labels1[i]], model2[labels2[i]], basis)))
     fidelities = (np.array(ent_fids)*pdim+1)/(pdim+1)
     return fidelities
 
@@ -92,7 +93,7 @@ def model_agfs(model, pdim):
     for i in range(len(labels)):
         for j in range(len(labels)):
             if j > i:
-                ent_fids.append(float(rptbl.entanglement_fidelity(
+                ent_fids.append(float(entanglement_fidelity(
                     model[labels[i]], model[labels[j]], basis)))
     fidelities = (np.array(ent_fids)*pdim+1)/(pdim+1)
     return fidelities
@@ -266,5 +267,5 @@ def diamond_dists(model1,model2,pdim, basis_string = 'pp'):
     labels2 = [label for label in model2.__dict__['operations'].keys()]
     for i in range(len(labels1)):
         gate_dists.append(
-            float(rptbl.half_diamond_norm(model1[labels1[i]], model2[labels2[i]], basis)))
+            float(diamonddist(model1[labels1[i]], model2[labels2[i]], basis)))
     return np.array(gate_dists)

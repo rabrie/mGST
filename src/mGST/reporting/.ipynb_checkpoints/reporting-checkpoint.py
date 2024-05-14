@@ -1,8 +1,8 @@
 from mGST import compatibility,low_level_jit,additional_fns
-from pygsti.report import reportables as rptbl
 from pygsti.algorithms import gaugeopt_to_target
 from pygsti.models import gaugegroup
 from pygsti.tools.optools import compute_povm_map
+
 import numpy as np
 import numpy.linalg as la
 import matplotlib.pyplot as plt
@@ -11,7 +11,12 @@ import pandas as pd
 from scipy.linalg import logm
 from pygsti.tools import change_basis
 from pygsti.baseobjs import Basis
-from pygsti.report import reportables as rptbl
+from pygsti.tools.optools import diamonddist
+from pygsti.report.reportables import entanglement_fidelity
+from os import listdir
+
+
+
 from scipy.optimize import minimize
 from matplotlib.colors import Normalize
 from argparse import Namespace
@@ -100,8 +105,8 @@ def report(X, E, rho, J, y, target_mdl, gate_labels):
     final_objf = low_level_jit.objf(X,E,rho,J,y)
     MVE = MVE_data(X,E,rho,J,y)[0]
     MVE_target = MVE_data(X_t,E_t,rho_t,J,y)[0]
-
-    povm_dd = float(rptbl.half_diamond_norm(E_map, E_map_t, 'std'))
+    
+    povm_dd = float(diamonddist(E_map, E_map_t, 'std'))
     rho_td = la.norm(rho.reshape((pdim,pdim))-rho_t.reshape((pdim,pdim)),ord = 'nuc')/2
     F_avg = compatibility.average_gate_fidelities(gauge_optimized_mdl,target_mdl,pdim, basis_string = 'pp')
     DD = compatibility.diamond_dists(gauge_optimized_mdl,target_mdl,pdim, basis_string = 'pp')
@@ -137,6 +142,51 @@ def report(X, E, rho, J, y, target_mdl, gate_labels):
     {'selector': 'td', 'props': 'text-align: center'},
     ], overwrite=False)
     return df_g, df_o, s_g, s_o
+
+def quick_report(X, E, rho, J, y, target_mdl, gate_labels):
+    pdim = int(np.sqrt(rho.shape[0]))
+    X_t,E_t,rho_t = compatibility.pygsti_model_to_arrays(target_mdl,basis = 'std')
+    target_mdl = compatibility.arrays_to_pygsti_model(X_t,E_t,rho_t, basis = 'std') #For consistent gate labels
+
+    gauge_optimized_mdl = compatibility.arrays_to_pygsti_model(X,E,rho, basis = 'std')
+        
+    final_objf = low_level_jit.objf(X,E,rho,J,y)
+    MVE = MVE_data(X,E,rho,J,y)[0]
+    MVE_target = MVE_data(X_t,E_t,rho_t,J,y)[0]
+    
+    rho_td = la.norm(rho.reshape((pdim,pdim))-rho_t.reshape((pdim,pdim)),ord = 'nuc')/2
+    F_avg = compatibility.average_gate_fidelities(gauge_optimized_mdl,target_mdl,pdim, basis_string = 'pp')
+    min_spectral_dists = [min_spectral_distance(X[i],X_t[i]) for i in range(X.shape[0])]
+    
+
+    df_g = pd.DataFrame({
+        "F_avg":F_avg,
+        "Min. Spectral distances": min_spectral_dists
+    })
+    df_o = pd.DataFrame({
+        "Final cost function value": final_objf,
+        "Mean total variation dist. to data": MVE,
+        "Mean total variation dist. target to data": MVE_target,
+        "State - Trace dist.": rho_td,  
+    }, index = [0])
+    df_g.rename(index=gate_labels, inplace = True)
+    df_o.rename(index={0: ""}, inplace = True)
+    
+    s_g = df_g.style.format(precision=5, thousands=".", decimal=",")
+    s_o = df_o.style
+    
+    s_g.set_table_styles([
+    {'selector': 'th.col_heading', 'props': 'text-align: center;'},
+    {'selector': 'th.col_heading.level0', 'props': 'font-size: 1em;'},
+    {'selector': 'td', 'props': 'text-align: center'},
+    ], overwrite=False)
+    s_o.set_table_styles([
+    {'selector': 'th.col_heading', 'props': 'text-align: center;'},
+    {'selector': 'th.col_heading.level0', 'props': 'font-size: 1em;'},
+    {'selector': 'td', 'props': 'text-align: center'},
+    ], overwrite=False)
+    return df_g, df_o, s_g, s_o
+
 
 def set_size(w,h, ax=None):
     """ w, h: width, height in inches """
@@ -216,67 +266,6 @@ def plot_spam(rho, E):
     set_size(4,3)
     plt.show()
     return im0
-
-
-# def generate_gate_err_pdf(filename, gates1, gates2, basis_labels = False, gate_labels = False, magnification = 5):
-#     d = gates1.shape[0]
-#     dim = gates1[0].shape[0]
-#     if not basis_labels:
-#         basis_labels = np.arange(dim)
-#     if not gate_labels:
-#         gate_labels = ['G%i' % k for k in range(d)]
-#     plot3_title = r'$%i*(G - G_{ideal})$'%magnification
-        
-#     for i in range(d):
-#         fig, axes = plt.subplots(ncols=3, nrows = 1,gridspec_kw={"width_ratios":[1,1,1]}, sharex=True)
-#         plt.rc('image', cmap='RdBu')
-#         mat1 = gates1[i]
-#         mat2 = gates2[i]
-#         dim = mat1.shape[0]
-        
-        
-#         ax = axes[0]
-#         im0 = ax.imshow(np.real(mat1), vmin = -1, vmax = 1) #change_basis(S_true_maps[0],'std','pp')
-#         ax.set_xticks(np.arange(dim))
-#         ax.set_xticklabels(basis_labels, rotation = 45)
-#         ax.set_yticks(np.arange(dim))
-#         ax.set_yticklabels(basis_labels)
-#         ax.grid(visible = 'True', alpha = 0.4)
-#         ax.tick_params(top=True, labeltop=True, bottom=False, labelbottom=False)
-#         ax.set_ylabel(gate_labels[i], rotation = 90, fontsize = 'large')
-
-#         ax = axes[1]
-#         im1 = ax.imshow(np.real(mat2), vmin = -1, vmax = 1) #change_basis(S_true_maps[0],'std','pp')
-#         ax.set_xticks(np.arange(dim))
-#         ax.set_xticklabels(basis_labels, rotation = 45)
-#         ax.set_yticks(np.arange(dim))
-#         ax.set_yticklabels(basis_labels)
-#         ax.tick_params(top=True, labeltop=True, bottom=False, labelbottom=False)
-#         ax.grid(visible = 'True', alpha = 0.4)
-
-        
-#         ax = axes[2]
-#         im2 = ax.imshow(magnification*np.real(mat1 - mat2), vmin = -1, vmax = 1) #change_basis(S_true_maps[0],'std','pp')
-#         ax.set_xticks(np.arange(dim))
-#         ax.set_xticklabels(basis_labels, rotation = 45)
-#         ax.set_yticks(np.arange(dim))
-#         ax.set_yticklabels(basis_labels)
-#         ax.tick_params(top=True, labeltop=True, bottom=False, labelbottom=False)
-        
-        
-#         ax.grid(visible = 'True', alpha = 0.4)
-#         axes[0].set_title(r'GST result', fontsize = 'large')
-#         axes[1].set_title(r'Ideal gate', fontsize = 'large')
-#         axes[2].set_title(plot3_title, fontsize = 'large')
-
-#         cbar = fig.colorbar(im0, ax=axes.ravel().tolist(), pad = 0)
-
-#         fig.subplots_adjust(left = 0.1, right = .76, top = .75, bottom = .03)
-
-#         set_size(2*np.sqrt(dim),0.8*np.sqrt(dim))
-#             #plt.show()
-#         plt.savefig(filename + "G%i.pdf" %i, dpi=150, transparent=True)
-#         plt.close()
 
 
 def generate_gate_err_pdf(filename, gates1, gates2, basis_labels = False, gate_labels = False, magnification = 5):
@@ -406,68 +395,6 @@ def generate_spam_err_pdf(filename, E, rho, E2, rho2, basis_labels = False, spam
     plt.savefig(filename, dpi=150, transparent=True)
     plt.close()
     
-# def generate_spam_err_std_pdf(filename, E, rho, E2, rho2, basis_labels = False, spam2_content = 'ideal'):
-#     r = rho.shape[0]
-#     pdim = int(np.sqrt(r))
-#     n_povm = E.shape[0]
-#     fig, axes = plt.subplots(ncols = 3, nrows=n_povm+1, sharex=True)
-#     plt.rc('image', cmap='RdBu')
-
-#     ax = axes[0,0]
-#     im0 = ax.imshow(rho.reshape((pdim,pdim)), vmin = -1, vmax = 1) #change_basis(S_true_maps[0],'std','pp')
-#     ax.set_title(r'$\rho$')
-#     ax.yaxis.set_major_locator(ticker.NullLocator())
-    
-#     ax = axes[0,1]
-#     im0 = ax.imshow(rho2.reshape((pdim,pdim)), vmin = -1, vmax = 1) #change_basis(S_true_maps[0],'std','pp')
-#     ax.set_title(r'$\rho$ - ' + spam2_content)
-#     ax.yaxis.set_major_locator(ticker.NullLocator())
-    
-#     ax = axes[0,2]
-#     im0 = ax.imshow(5*(rho-rho2).reshape((pdim,pdim)), vmin = -1, vmax = 1) #change_basis(S_true_maps[0],'std','pp')
-#     ax.set_title(r'5*Error')
-#     ax.yaxis.set_major_locator(ticker.NullLocator())
-    
-#     for i in range(n_povm): 
-#         ax = axes[1+i,0]
-#         ax.imshow(E[i].reshape((pdim,pdim)), vmin = -1, vmax = 1) #change_basis(S_true_maps[0],'std','pp')
-#         ax.set_xticks(np.arange(pdim))
-#         ax.set_xticklabels(np.arange(pdim)+1)
-#         ax.set_title(r'E%i'%(i+1))
-#         ax.yaxis.set_major_locator(ticker.NullLocator())
-#         ax.xaxis.set_major_locator(ticker.NullLocator())
-        
-#     for i in range(n_povm): 
-#         ax = axes[1+i,1]
-#         ax.imshow(E2[i].reshape((pdim, pdim)), vmin = -1, vmax = 1) #change_basis(S_true_maps[0],'std','pp')
-#         ax.set_xticks(np.arange(pdim))
-#         ax.set_xticklabels(np.arange(pdim)+1)
-#         ax.set_title(r'E%i - '%(i+1) + spam2_content)
-#         ax.yaxis.set_major_locator(ticker.NullLocator())
-#         ax.xaxis.set_major_locator(ticker.NullLocator())
-        
-#     for i in range(n_povm): 
-#         ax = axes[1+i,2]
-#         ax.imshow(5*(E[i]-E2[i]).reshape((pdim,pdim)), vmin = -1, vmax = 1) #change_basis(S_true_maps[0],'std','pp')
-#         ax.set_xticks(np.arange(pdim))
-#         ax.set_xticklabels(np.arange(pdim)+1)
-#         ax.set_title(r'5*Error')
-#         ax.yaxis.set_major_locator(ticker.NullLocator())
-#         ax.xaxis.set_major_locator(ticker.NullLocator())
-
-#     #     cax = fig.add_axes([axes[0].get_position().x1+0.05,ax.get_position().y0-0.05,0.02,10*ax.get_position().height])
-#     #     fig.colorbar(im0, cax=cax)
-
-#     cbar = fig.colorbar(im0, ax=axes.ravel().tolist(), pad = 0.1)
-#     cbar.ax.set_ylabel(r'Standard basis coefficient', labelpad = 5, rotation=90)
-
-#     fig.subplots_adjust(left = 0, right = .7, top = .90, bottom = .05, wspace = -.5, hspace = 0.3)
-
-#     # set_size(2*pdim,0.8*n_povm+1)
-#     # set_size(2*np.sqrt(pdim),0.8*np.sqrt(n_povm+1))
-#     plt.savefig(filename, dpi=150, transparent=True)
-#     plt.close()
-    
 def generate_spam_err_std_pdf(filename, E, rho, E2, rho2, basis_labels = False, magnification = 10):
     dim = rho.shape[0]
     pdim = int(np.sqrt(dim))
@@ -549,7 +476,7 @@ def eff_depol_params(X_opt_pp):
     K_depol = additional_fns.depol(int(np.sqrt(r)),1)
     X_depol = np.einsum("jkl,jnm -> knlm", K_depol, K_depol.conj()).reshape(r, r)
     for i in range(X_opt_pp.shape[0]):
-        ent_fids.append(rptbl.entanglement_fidelity(X_opt_pp[i], change_basis(X_depol, 'std', 'pp'), basis))
+        ent_fids.append(entanglement_fidelity(X_opt_pp[i], change_basis(X_depol, 'std', 'pp'), basis))
     return ent_fids
 
 def eff_depol_params_agf(X_opt_pp):
@@ -560,7 +487,7 @@ def eff_depol_params_agf(X_opt_pp):
     K_depol = additional_fns.depol(int(np.sqrt(r)),1)
     X_depol = np.einsum("jkl,jnm -> knlm", K_depol, K_depol.conj()).reshape(r, r)
     for i in range(X_opt_pp.shape[0]):
-        ent_fids.append(rptbl.entanglement_fidelity(X_opt_pp[i], change_basis(X_depol, 'std', 'pp'), basis))
+        ent_fids.append(entanglement_fidelity(X_opt_pp[i], change_basis(X_depol, 'std', 'pp'), basis))
     return (pdim*np.array(ent_fids) + 1)/(pdim + 1)
 
 def unitarities(X_opt_pp):
@@ -635,3 +562,32 @@ def bootstrap_errors(K, X, E, rho, mGST_args, bootstrap_samples, weights, gate_l
         rho_array[i, :] = rho_opt_pp
         
     return (X_array, E_array, rho_array, np.array(df_g_list), np.array(df_o_list))
+
+def outcome_probs_from_files(folder_name, basis_dict, n_povm,N):
+    
+    filenames = listdir(path = folder_name)
+    datafile_names  = [s for s in filenames if ".txt" in s]
+
+    # sample_counts keeps track of how many shots were taken for each sequence
+    sample_counts = []
+    # array of outcome probabilities:
+    y = np.zeros((n_povm,N))
+    sample_counts = np.zeros((len(datafile_names),N))
+    k = 0
+    for filename in datafile_names:
+        with open(folder_name + "/" + filename) as file:
+            i = 0
+            for line in file:
+                # removing row index at beginning and \n mark at end 
+                line_entries = line.rstrip().split(': ')
+                # splitting result string at commas
+                result_list = line_entries[1:][0].split(',')
+                # translate each measurement result onto basis index
+                for entry in result_list: 
+                    j = basis_dict[entry]
+                    y[j,i] += 1
+                sample_counts[k,i] = len(result_list)
+                i += 1
+        k += 1
+    total_counts = np.sum(sample_counts, axis = 0)
+    return y/total_counts, np.max(total_counts)

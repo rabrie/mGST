@@ -6,7 +6,7 @@ d = 6 # number of different gates
 n_povm = 2
 rK = 4
 bsize = 30*pdim
-from_init = False
+from_init = True
 bootstrapping = False
 
 eyperiment_name = 'test'
