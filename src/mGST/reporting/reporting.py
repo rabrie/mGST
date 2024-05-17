@@ -1,4 +1,6 @@
-from mGST import compatibility,low_level_jit,additional_fns
+from mGST import compatibility,low_level_jit,additional_fns, algorithm
+from mGST.reporting.uncertainty import *
+
 from pygsti.algorithms import gaugeopt_to_target
 from pygsti.models import gaugegroup
 from pygsti.tools.optools import compute_povm_map
@@ -13,7 +15,8 @@ from pygsti.tools import change_basis
 from pygsti.baseobjs import Basis
 from pygsti.tools.optools import diamonddist
 from pygsti.report.reportables import entanglement_fidelity
-from os import listdir
+import csv
+import os
 
 
 
@@ -336,7 +339,12 @@ def compute_angles_axes(U_set):
         H = 1j*logm(U_set[i])
         pp_vec = change_basis(H.reshape(-1),'std','pp')[1:]
         original_phase = la.norm(pp_vec)*2/np.sqrt(pdim)
-        if (-np.min(pp_vec) > np.max(pp_vec)) and original_phase > np.pi:
+        # if (-np.min(pp_vec) > np.max(pp_vec)) and original_phase > np.pi:
+        #     alt_phase = (-original_phase + 2*np.pi)%(2*np.pi)
+        #     pp_vec = - pp_vec
+        # else:
+        #     alt_phase = original_phase
+        if original_phase > np.pi:
             alt_phase = (-original_phase + 2*np.pi)%(2*np.pi)
             pp_vec = - pp_vec
         else:
@@ -551,7 +559,7 @@ def bootstrap_errors(K, X, E, rho, mGST_args, bootstrap_samples, weights, gate_l
                          target_rel_prec = ns.target_rel_prec, init = [K, E, rho], testing = False)   
 
         X_opt, E_opt, rho_opt = gauge_opt(X_, E_, rho_, target_mdl, weights)
-        df_g, df_o, _, _ = report(X_opt, E_opt, rho_opt, J, y_sampled, target_mdl, gate_labels)
+        df_g, df_o, _, _ = report(X_opt, E_opt, rho_opt, ns.J, y_sampled, target_mdl, gate_labels)
         df_g_list.append(df_g.values)
         df_o_list.append(df_o.values)
 
@@ -565,7 +573,7 @@ def bootstrap_errors(K, X, E, rho, mGST_args, bootstrap_samples, weights, gate_l
 
 def outcome_probs_from_files(folder_name, basis_dict, n_povm,N):
     
-    filenames = listdir(path = folder_name)
+    filenames = os.listdir(path = folder_name)
     datafile_names  = [s for s in filenames if ".txt" in s]
 
     # sample_counts keeps track of how many shots were taken for each sequence
@@ -591,3 +599,29 @@ def outcome_probs_from_files(folder_name, basis_dict, n_povm,N):
         k += 1
     total_counts = np.sum(sample_counts, axis = 0)
     return y/total_counts, np.max(total_counts)
+
+def save_var_latex(key, value):
+    # Saves variables in data file for to be read in latex document
+    # Credit to https://stackoverflow.com/a/66620671
+    dict_var = {}
+
+    file_path = os.path.join(os.getcwd(), "report/latex_vars.dat")
+
+    try:
+        with open(file_path, newline="") as file:
+            reader = csv.reader(file)
+            for row in reader:
+                dict_var[row[0]] = row[1]
+    except FileNotFoundError:
+        pass
+
+    dict_var[key] = value
+
+    with open(file_path, "w") as f:
+        for key in dict_var.keys():
+            f.write(f"{key},{dict_var[key]}\n")
+            
+
+def n_params(pdim,d,rK,n_povm):
+    # Order: gates + stat + povm - povm_freedom - gauge freedom - Kraus freedom
+    return d*(pdim**2*(2*rK - 1) - rK**2) + pdim*(n_povm*pdim - pdim)

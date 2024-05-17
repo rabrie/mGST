@@ -1,0 +1,124 @@
+\documentclass[aps,pra,10pt,superscriptaddress,notitlepage]{revtex4-2}
+%\documentclass[a4paper,10pt,twocolumn,DIV16]{scrartcl} 
+
+\usepackage[T1]{fontenc} %256 bit font encoding
+\usepackage[english]{babel} %english language
+%\usepackage{uniinput} %allows for unicode math
+\usepackage[utf8]{inputenc}
+
+
+\usepackage[table,usenames,dvipsnames]{xcolor}
+\usepackage{hyperref}
+\PassOptionsToPackage{linktocpage}{hyperref} %link numbers in TOC for arxiv
+
+\hypersetup{
+  hypertexnames=false,
+  colorlinks   = true, %Colours links instead of ugly boxes
+  urlcolor     = magenta, %Colour for external hyperlinks
+  linkcolor    = blue, %Colour of internal links
+  citecolor   = green %Colour of citations
+}
+\usepackage{bookmark} %to fix the pdfbookmarks
+
+\usepackage{graphicx}
+\usepackage{amsthm} % thm environments
+\usepackage{amssymb}
+\usepackage{amsmath,mathtools}
+\usepackage{dsfont}
+\usepackage[vcentermath]{youngtab}
+\usepackage{comment}
+\usepackage{paralist}
+\usepackage{booktabs}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{tikz}
+
+% package to open file containing variables
+\usepackage{datatool, filecontents}
+\DTLsetseparator{,}
+
+% import data
+\DTLloaddb[noheader, keys={thekey,thevalue}]{latex_vars}{report/latex_vars.dat}
+\newcommand{\var}[1]{\DTLfetch{latex_vars}{thekey}{#1}{thevalue}}
+
+\graphicspath{{mGST_results/}} %Setting the graphicspath
+\makeatletter
+\def\input@path{{mGST_results/}}
+\makeatother
+
+
+
+\newcommand{\tocite}[1]{{\color{blue}{[{\bf CITE:}#1]}}}
+\newcommand{\comm}[1]{{\color{red}{[{\bf Comment:}#1]}}}
+
+\newcommand{\m}[1]{\mathcal #1}
+\newcommand{\ii}{\mathds{1}}
+
+
+%%% =========================================================================
+\begin{document}%%% =========================================================
+%%% =========================================================================
+
+\title{GST Report}
+\date{\today}
+\maketitle
+% tableofcontents
+
+\section{Setup}
+\begin{itemize}
+\item Name and date of the experiment: \var{experiment_name}, \var{experiment_date}
+\item Number of sequences: 200.
+\item Average shots per sequence: \var{meas_samples}.
+\item \textbf{Rank: \var{rK}.}
+\item Number of free parameters: \var{free_params}.
+\item Gate set: \\
+    \begin{center}
+        \{\var{gate_labels}\}
+    \end{center}
+\end{itemize}
+
+\section{Error measures}
+
+\input{gate_errors}
+\input{spam_errors}
+
+\IfFileExists{./mGST_results/bloch_rotation.tex}{\input{mGST_results/bloch_rotation.tex}}{}
+\IfFileExists{./mGST_results/bloch_rotation_axes_coeffs.tex}{\input{mGST_results/bloch_rotation_axes_coeffs.tex}}{}
+
+\newpage
+\section{Gate and SPAM plots}
+
+\foreach \x in {0,1,2,3,4,5}
+{
+\begin{figure*}[!ht] 
+    \centering
+    \includegraphics[scale=.8]{ppG\x.pdf}
+    \caption{Process matrix in the Pauli basis with entries in $[-1,1]$. Left side: GST reconstruction, center: ideal gate, right side: error channel (ideally the identity).}
+\end{figure*}
+}
+
+% \begin{figure*}[!ht] 
+%     \centering
+%     \includegraphics{spam_errs_pp.pdf}
+%   \caption{Left column: state and measurement in Pauli basis, right column: magnified errors to target.}
+% \end{figure*}
+
+\begin{figure*}[!ht] 
+    \centering
+    \includegraphics{spam_errs_std_real.pdf}
+  \caption{Left column: real part of state and measurement in standard basis, right column: magnified errors to ideal implementation $10\cdot(\hat \rho - \rho_{\mathrm{ideal}})$ and $10\cdot(\hat E_i - E_{i,\mathrm{ideal}})$.}
+\end{figure*}
+
+\begin{figure*}[!ht] 
+    \centering
+    \includegraphics{spam_errs_std_imag.pdf}
+  \caption{Left column: imaginary part of state and measurement in standard basis, right column: magnified errors to ideal implementation $10\cdot(\hat \rho - \rho_{\mathrm{ideal}})$ and $10\cdot(\hat E_i - E_{i,\mathrm{ideal}})$.}
+\end{figure*}
+%%%=============================================
+%%%=============================================
+\bibliographystyle{./myapsrev4-1}
+\bibliography{new}
+%%%=============================================
+
+
+\end{document}%%%===============================
