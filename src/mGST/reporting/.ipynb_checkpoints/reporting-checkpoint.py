@@ -9,6 +9,8 @@ import numpy as np
 import numpy.linalg as la
 import matplotlib.pyplot as plt
 from scipy.optimize import linear_sum_assignment
+from random import sample
+
 import pandas as pd
 from scipy.linalg import logm
 from pygsti.tools import change_basis
@@ -344,11 +346,12 @@ def compute_angles_axes(U_set):
         #     pp_vec = - pp_vec
         # else:
         #     alt_phase = original_phase
-        if original_phase > np.pi:
-            alt_phase = (-original_phase + 2*np.pi)%(2*np.pi)
-            pp_vec = - pp_vec
-        else:
-            alt_phase = original_phase
+        # if original_phase > np.pi:
+        #     alt_phase = (-original_phase + 2*np.pi)%(2*np.pi)
+        #     pp_vec = - pp_vec
+        # else:
+        #     alt_phase = original_phase
+        alt_phase = original_phase
         angles.append(alt_phase/np.pi) 
         # print('i:%i'%i, original_phase/np.pi, alt_phase/np.pi)
         axes.append(pp_vec/la.norm(pp_vec))
@@ -625,3 +628,32 @@ def save_var_latex(key, value):
 def n_params(pdim,d,rK,n_povm):
     # Order: gates + stat + povm - povm_freedom - gauge freedom - Kraus freedom
     return d*(pdim**2*(2*rK - 1) - rK**2) + pdim*(n_povm*pdim - pdim)
+
+def random_seq_design(d, l_min, l_cut, l_max, N_short, N_long): #Draws without replacement but ineficiently (not working for sequence length > 24)
+    # To do: - Change randomness to work with longer sequences;
+    #        - Handle case where Number of sequences is smaller than the available lengths
+    J = [-np.ones(l_max)]
+    
+    #Short sequences: 
+    seq_counts = []
+    N_remaining = N_short
+    for l in range(l_min, l_cut+1):
+        seq_counts.append(int(np.min([np.floor(N_remaining/(l_cut+1-l)), d**l])))
+        ind_curr = np.array(sample(range(d**l), seq_counts[-1]))
+        J_curr = np.array([np.pad(low_level_jit.local_basis(ind,d,l),(0,l_max-l),'constant', constant_values = -1) for ind in ind_curr])
+        J = np.concatenate((J,J_curr), axis = 0)
+        N_remaining = N_short - 1 - np.sum(seq_counts)
+    if N_remaining > 0:
+        print('Number of possible sequences without replacement for the given sequence\
+        length range is lower than the desired total number of sequences')
+
+    #Long sequences:
+    seq_counts = []
+    N_remaining = N_long 
+    for l in range(l_cut+1, l_max+1):
+        seq_counts.append(int(np.min([np.floor(N_remaining/(l_max+1-l)), d**l])))
+        ind_curr = np.array(sample(range(d**l), seq_counts[-1]))
+        J_curr = np.array([np.pad(low_level_jit.local_basis(ind,d,l),(0,l_max-l),'constant', constant_values = -1) for ind in ind_curr])
+        J = np.concatenate((J,J_curr), axis = 0)
+        N_remaining = N_long - np.sum(seq_counts)
+    return J.astype(int)
