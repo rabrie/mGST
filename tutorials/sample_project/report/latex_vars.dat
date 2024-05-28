@@ -1,6 +1,0 @@
-experiment_name,test
-experiment_date,17.01.2024
-rK,1
-free_params,22
-meas_samples,500
-gate_labels,{0: 'Idle-short', 1: 'Idle-long', 2: 'Rx(pi)', 3: 'Ry(pi)', 4: 'Rx(pi/2)', 5: 'Ry(pi/2)'}
