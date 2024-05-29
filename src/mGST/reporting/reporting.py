@@ -1,5 +1,4 @@
 from mGST import compatibility,low_level_jit,additional_fns, algorithm
-from mGST.reporting.uncertainty import *
 
 from pygsti.algorithms import gaugeopt_to_target
 from pygsti.models import gaugegroup
@@ -657,3 +656,21 @@ def random_seq_design(d, l_min, l_cut, l_max, N_short, N_long): #Draws without r
         J = np.concatenate((J,J_curr), axis = 0)
         N_remaining = N_long - np.sum(seq_counts)
     return J.astype(int)
+
+
+def number_to_str(number, uncertainty = None, precision = 3):
+    """
+    Formats a floating point number to a string with the given precision.
+
+    Parameters:
+    number (float): The floating point number to format.
+    uncertainty (tuple): The upper and lower values of the confidence interval
+    precision (int): The number of decimal places to include in the formatted string.
+
+    Returns:
+    str: The formatted floating point number as a string.
+    """
+    if uncertainty is None:
+        return f"{number:.{precision}f}"
+
+    return f"{number:.{precision}f} [{uncertainty[1]:.{precision}f},{uncertainty[0]:.{precision}f}]"
