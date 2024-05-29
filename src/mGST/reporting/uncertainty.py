@@ -3,8 +3,6 @@ from math import ceil, isinf, log10
 from numbers import Number
 from typing import List, Optional, Tuple, Union
 
-from qibocal.config import raise_error
-
 
 def significant_digit(number: Number):
     """Computes the position of the first significant digit of a given number.
@@ -61,15 +59,9 @@ def number_to_str(
     
     if precision is not None:
         if isinstance(precision, int) is False:
-            raise_error(
-                TypeError,
-                f"`precision` must be of type int. Got {type(precision)} instead.",
-            )
+            raise TypeError(f"`precision` must be of type int. Got {type(precision)} instead.")
         if precision < 0:
-            raise_error(
-                ValueError,
-                f"`precision` cannot be negative. Got {precision}.",
-            )
+            raise ValueError(f"`precision` cannot be negative. Got {precision}.")
 
     # If uncertainty is not given, return the value with precision
     if uncertainty is None:
@@ -84,16 +76,10 @@ def number_to_str(
 
     
     if isinstance(uncertainty, (list, tuple, np.ndarray)) is False:
-        raise_error(
-            TypeError,
-            f"`uncertainty` must be of type Iterable or a Number. Got {type(uncertainty)} instead.",
-        )
+        raise TypeError(f"`uncertainty` must be of type Iterable or a Number. Got {type(uncertainty)} instead.")
 
     if len(uncertainty) != 2:
-        raise_error(
-            ValueError,
-            f"`uncertainty` list must contain 2 elements. Got {len(uncertainty)} instead.",
-        )
+        raise ValueError(f"`uncertainty` list must contain 2 elements. Got {len(uncertainty)} instead.")
 
     # If the is a None uncertainty, return the value with precision
     if any(error is None for error in uncertainty):
@@ -103,9 +89,5 @@ def number_to_str(
     # If precision is None, get the first significant digit of the uncertainty
     if precision is None:
         precision = max(significant_digit(error) for error in uncertainty)
-
-    # # Check if both uncertainties are equal up to precision
-    # if np.round(uncertainty[0], precision) == np.round(uncertainty[1], precision):
-    #     return f"{value:.{precision}f} \u00B1 {uncertainty[0]:.{precision}f}"
 
     return f"{value:.{precision}f} [{uncertainty[1]:.{precision}f},{uncertainty[0]:.{precision}f}]"
