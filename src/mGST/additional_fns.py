@@ -3,7 +3,7 @@ import warnings
 import numpy as np
 import numpy.linalg as la
 from scipy.linalg import qr, expm
-from mGST.low_level_jit import local_basis, MVE_lower, Mp_norm_lower, contract
+from mGST.low_level_jit import local_basis, MVE_lower, Mp_norm_lower, contract, local_basis
 
 
 def transp(dim1, dim2):
@@ -298,7 +298,32 @@ def random_gs_Haar(d, r, rK, n_povm):
     E = np.array([(A[i].T.conj() @ A[i]).reshape(-1) for i in range(n_povm)]).copy()
     return K, X, E, rho
 
+def perturbed_target_init(X_target, rK):
+    """Generates a small random noise gate around the identity and applies it to the target gate
+    The reason for using this gate as an initialization as opposed the the target gate itself, is
+    that the non-dominant Kraus operators we start with are now not zero, but small random matrices.
+    Observations show that with this start, the non-dominant Kraus operators converge faster.
 
+    Parameters
+    ----------
+    X_target : 3D numpy array
+        Current gate estimate
+    rK : int
+        Number of Kraus operators per gate ("Kraus rank") for the initialization
+
+    Returns
+    -------
+    K_init: 4D numpy array
+        Each subarray along the first axis contains a set of Kraus operators.
+        The second axis enumerates Kraus operators for a gate specified by the first axis.
+    """
+    d,r,_ = X_target.shape
+    pdim = int(np.sqrt(r))
+    K_perturb = randKrausSet(d, r, rK, a=0.1)
+    X_perturb = np.einsum("ijkl,ijnm -> iknlm", K_perturb, K_perturb.conj()).reshape(d, r, r)
+    X_init = np.einsum('ikl,ilm ->ikm', X_perturb, X_target)
+    K_init = Kraus_rep(X_init, d, pdim, rK)
+    return K_init
 def basis(size, index):
     """Creates standard basis vectors
 
@@ -735,3 +760,63 @@ def tvd(X, E, rho, J, y_data):
                                 for i in range(n_povm)]))
     dist = la.norm(y_model - y_data, ord=1) / 2
     return dist
+
+
+def random_seq_design(d, l_min, l_cut, l_max, N_short, N_long): #Draws without replacement but ineficiently (not working for sequence length > 24)
+    """ Generate a set of random sequences ith given lengths
+    This sequence lengths (circuit depths) are chosen for a mix of very short sequences (better convergence) and some
+    slightly longer sequences to reduce the generalization error.
+    This sequence design is heuristic and intended for coarse and fast estimates. For very accurate estimates at the
+    cost of higher measurement effort it is recommended to use pyGSTi with long sequence GST.
+
+    Parameters
+    ----------
+    d : int
+        The number of gates in the gate set
+    l_min : int
+        Minimum sequence lenght
+    l_cut : int
+        Cutoff sequence lenght: N_short sequences are equally distributed among lengths l_min < l < l_cut
+    l_max : int
+        N_long sequences are equally distributed among lengths l_cut + 1 < l < l_max. Currently l_max < 24 only.
+    N_short : int
+        Number of short sequences
+    N_long : int
+        Number of long sequences
+
+    Returns
+    -------
+    J : numpy array
+        2D array where each row contains the gate indices of a gate sequence
+
+    """
+    # Open problems:
+    # - Change randomness to work with longer sequences;
+    # - Handle case where Number of sequences is smaller than the available lengths
+    if l_max >= 24:
+        raise ValueError("Currently only sequences lenghts < 24 are supported.")
+
+    J = [-np.ones(l_max)]
+    #Short sequences:
+    seq_counts = []
+    N_remaining = N_short
+    for l in range(l_min, l_cut+1):
+        seq_counts.append(int(np.min([np.floor(N_remaining/(l_cut+1-l)), d**l])))
+        ind_curr = np.array(random.sample(range(d**l), seq_counts[-1]))
+        J_curr = np.array([np.pad(local_basis(ind,d,l),(0,l_max-l),'constant', constant_values = -1) for ind in ind_curr])
+        J = np.concatenate((J,J_curr), axis = 0)
+        N_remaining = N_short - 1 - np.sum(seq_counts)
+    if N_remaining > 0:
+        print('Number of possible sequences without replacement for the given sequence\
+        length range is lower than the desired total number of sequences')
+
+    #Long sequences:
+    seq_counts = []
+    N_remaining = N_long
+    for l in range(l_cut+1, l_max+1):
+        seq_counts.append(int(np.min([np.floor(N_remaining/(l_max+1-l)), d**l])))
+        ind_curr = np.array(random.sample(range(d**l), seq_counts[-1]))
+        J_curr = np.array([np.pad(local_basis(ind,d,l),(0,l_max-l),'constant', constant_values = -1) for ind in ind_curr])
+        J = np.concatenate((J,J_curr), axis = 0)
+        N_remaining = N_long - np.sum(seq_counts)
+    return J.astype(int)

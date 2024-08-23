@@ -7,6 +7,7 @@ from scipy.linalg import eigh, eig
 import sys
 from warnings import warn
 from tqdm import tqdm
+from decimal import Decimal
 from mGST.low_level_jit import objf, ddA_derivs, ddB_derivs, dK, dK_dMdM, ddM
 from mGST.additional_fns import transp, random_gs, batch
 from mGST.optimization import (tangent_proj, update_A_geodesic, update_B_geodesic,
@@ -685,7 +686,7 @@ def run_mGST(*args, method="SFN", max_inits=10, max_iter=200, final_iter=70, tar
         i = 0
 
     success = 0
-    print("Starting optimization...")
+    print("Starting mGST optimization...")
     if not init:
         for i in range(max_inits):
             K, X, E, rho = random_gs(d, r, rK, n_povm)
@@ -709,7 +710,7 @@ def run_mGST(*args, method="SFN", max_inits=10, max_iter=200, final_iter=70, tar
                 plt.legend()
                 plt.show()
             if success == 1:
-                print("Initialization successful, improving estimate over full data....")
+                print("Initialization successful on data batches, improving estimate over full data....")
                 break
             if i + 1 < max_inits:
                 print("Run ", i, "failed, trying new initialization...")
@@ -734,7 +735,7 @@ def run_mGST(*args, method="SFN", max_inits=10, max_iter=200, final_iter=70, tar
             plt.legend()
             plt.show()
         if success == 1:
-            print("Optimization successful, improving estimate over full data....")
+            print("Batch optimization successful, improving estimate over full data....")
         else:
             print("Success threshold not reached, attempting optimization over full data set...")
     for n in tqdm(range(final_iter), file=sys.stdout):
@@ -750,13 +751,12 @@ def run_mGST(*args, method="SFN", max_inits=10, max_iter=200, final_iter=70, tar
         plt.axhline(delta, color="green", label="conv. threshold")
         plt.legend()
         plt.show()
-    print("#################")
     if success == 1 or (res_list[-1] < delta):
         print("\t Convergence criterion satisfied")
     else:
         print("\t Convergence criterion not satisfied,",
               "try increasing max_iter or using new initializations.")
-    print("\t Final objective function value", res_list[-1],
-          "with # of initializations: %i" % (i + 1), "\n \t Total runtime:",
-          time.time() - t0)
+    print("\t Final objective {:.2e}".format(Decimal(res_list[-1])),
+          "with # of initializations: %i" % (i + 1), "in time {:.2f}s".format(time.time() - t0),
+          )
     return K, X, E, rho, res_list

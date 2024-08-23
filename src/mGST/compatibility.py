@@ -1,9 +1,10 @@
 import numpy as np
-import pygsti
 from pygsti.baseobjs import Label
 from pygsti.tools import change_basis
-from pygsti.tools.optools import diamonddist
 from pygsti.report.reportables import entanglement_fidelity
+from pygsti.baseobjs import Basis
+from pygsti.models.modelconstruction import create_explicit_model_from_expressions
+from pygsti.circuits import create_lsgst_circuits
 
 
 def pygsti_model_to_arrays(model, basis="pp"):
@@ -62,7 +63,7 @@ def average_gate_fidelities(model1, model2, pdim, basis_string="pp"):
         Array containing the average gate fidelities for all gates
     """
     ent_fids = []
-    basis = pygsti.baseobjs.Basis.cast(basis_string, pdim**2)
+    basis = Basis.cast(basis_string, pdim**2)
     labels1 = [label for label in model1.__dict__["operations"].keys()]
     labels2 = [label for label in model2.__dict__["operations"].keys()]
 
@@ -88,7 +89,7 @@ def model_agfs(model, pdim):
         Average gate fidelities between all different gates of the input model
     """
     ent_fids = []
-    basis = pygsti.obj.Basis.cast("pp", pdim**2)
+    basis = Basis.cast("pp", pdim**2)
     labels = [label for label in model.__dict__["operations"].keys()]
     for i in range(len(labels)):
         for j in range(len(labels)):
@@ -128,7 +129,7 @@ def arrays_to_pygsti_model(X, E, rho, basis="std"):
     effect_label_str = ["%i" % k for k in range(E.shape[0])]
     if basis == "std":
         X, E, rho = std2pp(X, E, rho)
-    mdl_out = pygsti.models.modelconstruction.create_explicit_model_from_expressions(
+    mdl_out = create_explicit_model_from_expressions(
         [i for i in range(int(np.log(pdim) / np.log(2)))],
         [Label("G%i" % i) for i in range(d)],
         [":".join(["I(%i)" % i for i in range(int(np.log(pdim) / np.log(2)))])
@@ -218,7 +219,7 @@ def pygstiExp_to_list(model, max_germ_len):
     meas_fiducials = model.meas_fiducials()
     germs = model.germs()
     maxLengths = [max_germ_len]
-    listOfExperiments = pygsti.circuits.create_lsgst_circuits(
+    listOfExperiments = create_lsgst_circuits(
         model.target_model(), prep_fiducials, meas_fiducials, germs, maxLengths)
     op_Labels = [label for label in model.target_model().__dict__["operations"].keys()]
     exp_list = []
@@ -233,35 +234,3 @@ def pygstiExp_to_list(model, max_germ_len):
     J_GST = np.array([[int(exp_list[i][j]) for j in range(max_length)]
                       for i in range(len(exp_list))])
     return J_GST
-
-
-def diamond_dists(model1, model2, pdim, basis_string="pp"):
-    """Return the diamond distances between gates of two pygsti models
-
-    Parameters
-    ----------
-    model : pygsti ExplicitOpModel object
-        Contains the model parameters in the Pauli transfer matrix formalism
-    model2 : pygsti ExplicitOpModel object
-        Contains the model parameters in the Pauli transfer matrix formalism
-    pdim : int
-        physical dimension
-    basis : {'pp','std'}
-        The basis in which the input models are gíven. It can be either
-        'pp' (Pauli basis) or 'std' (standard basis, Default)
-
-    Returns
-    -------
-    gate_dists : 1D numpy array
-        Array containing the diamond distances for all gates in the order they appear in model1.
-
-    Notes: Models need to have the same gate labels.
-    """
-    gate_dists = []
-    basis = pygsti.baseobjs.Basis.cast(basis_string, pdim**2)
-    labels1 = [label for label in model1.__dict__["operations"].keys()]
-    labels2 = [label for label in model2.__dict__["operations"].keys()]
-    for i in range(len(labels1)):
-        gate_dists.append(
-            float(diamonddist(model1[labels1[i]], model2[labels2[i]], basis)))
-    return np.array(gate_dists)

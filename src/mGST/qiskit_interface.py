@@ -1,5 +1,7 @@
 import numpy as np
-from qiskit import QuantumCircuit, Aer, execute
+from qiskit import QuantumCircuit
+from qiskit_aer import Aer
+from qiskit.circuit.library import IGate
 from qiskit.quantum_info import Operator
 import random
 from scipy.linalg import expm
@@ -7,29 +9,83 @@ from mGST import additional_fns, low_level_jit, algorithm
 import matplotlib.pyplot as plt
 
 
-def qiskit_gate_to_kraus(gate_set):
-    """Convert a set of Qiskit gates to their corresponding Kraus operators.
+def qiskit_gate_to_operator(gate_set):
+    """Convert a set of Qiskit gates to their unitary operators.
 
-    This function takes a list of Qiskit gate objects and converts each gate into
-    its Kraus operator representation. The Kraus operators are returned as a NumPy
+    This function takes a list of Qiskit gate objects and them into operators, returned as a NumPy
     array of matrices.
 
     Parameters
     ----------
     gate_set : list
         A list of Qiskit gate objects. Each gate in the list is converted to its
-        corresponding Kraus operator.
+        corresponding unitary.
 
     Returns
     -------
     numpy.ndarray
-        An array of Kraus operators. Each element in the array is a 2D NumPy array
-        representing the Kraus operator of the corresponding gate in `gate_set`.
+        An array of process matrices. Each element in the array is a 2D NumPy array.
     """
-    return np.array([[Operator(gate).data] for gate in gate_set])
+    return np.array([[Operator(gate).to_matrix()] for gate in gate_set])
+
+def add_idle_gates(gate_set, active_qubits, gate_qubits):
+    """ Add additional idle gates to a gate set
+    Each gate in the output gate_set acts on exactly the number of qubits
+    on which the GST experiment ist defined. For instance if the GST
+    experiment is supposed to be run on qubits [0,1,2], then a X-Gate
+    on the 0-th qubit turns into X \otimes Idle \otimes Idle.
+    This representation is needed for the internal handling in mGST.
+
+    Parameters
+    ----------
+    gate_set : list of Qiskit Circuits
+        Each element is a gate to be used for GST, stored as a circuit.
+    active_qubits : list integers
+        Specifies the list of qubits on which GST-circuits are run.
+    gate_qubits : list of lists of integers
+        The i-th elements in the active_qubit list specifies on which qubits
+        the original i-th gate in the input gate set is supposed to act.
+    Returns
+    -------
+    gate_set : list of Qiskit Circuits
+        The output gate set with added idle gates.
+    """
+    d = len(gate_qubits)
+    for i in range(d):
+        idle_qubits = active_qubits.copy()
+        for j in gate_qubits[i]:
+            idle_qubits.remove(j)
+        if idle_qubits:
+            for l in idle_qubits:
+                gate_set[i].append(IGate(), [l])
+    return gate_set
+
+def remove_idle_wires(qc):
+    """ Removes all wires on which no gate acts
+    Credit to: https://quantumcomputing.stackexchange.com/a/37192
+    This shrinks the circuit for the conversion to quantum channels.
+
+    Parameters
+    ----------
+    qc  Qiskit quantum circuit
+
+    Returns
+    -------
+    qc_out Qiskit quantum circuit
+        The circuit with idle wires removed.
+    """
+    qc_out = qc.copy()
+    gate_count = {qubit: 0 for qubit in qc.qubits}
+    for gate in qc.data:
+        for qubit in gate.qubits:
+            gate_count[qubit] += 1
+    for qubit, count in gate_count.items():
+        if count == 0:
+            qc_out.qubits.remove(qubit)
+    return qc_out
 
 
-def get_qiskit_circuits(gate_sequences, gate_set):
+def get_qiskit_circuits(gate_sequences, gate_set, n_qubits, active_qubits, measure_active=False):
     """
     Generate a set of Qiskit quantum circuits from specified gate sequences.
 
@@ -44,6 +100,13 @@ def get_qiskit_circuits(gate_sequences, gate_set):
         corresponds to a gate in `gate_set`.
     gate_set : list
         A list of Qiskit gate objects. The indices in `gate_sequences` refer to gates in this list.
+    n_qubits : int
+        The total number of qubits in the system.
+    active_qubits : list of int
+        The qubits on which the circuits are run.
+    measure_active : bool
+        If set to "True", only the active qubits are measured, otherwise all qubits are measured.
+
 
     Returns
     -------
@@ -54,10 +117,14 @@ def get_qiskit_circuits(gate_sequences, gate_set):
     qiskit_circuits = []
 
     for gate_sequence in gate_sequences:
-        qc = QuantumCircuit(1)
+        qc = QuantumCircuit(n_qubits,n_qubits)
         for gate_num in gate_sequence:
-            qc.append(gate_set[int(gate_num)], [0])
-        qc.measure_all()
+            qc.compose(gate_set[gate_num], active_qubits, inplace=True)
+            qc.barrier(active_qubits)
+        if measure_active:
+            qc.measure(active_qubits, active_qubits)
+        else:
+            qc.measure_all()
         qiskit_circuits.append(qc)
     return qiskit_circuits
 
@@ -84,7 +151,7 @@ def simulate_circuit(qiskit_circuits, shots):
         Values in the array are normalized by the total number of shots.
     """
     simulator = Aer.get_backend("qasm_simulator")
-    sequence_results = execute(qiskit_circuits, simulator, shots=shots).result().get_counts()
+    sequence_results = simulator.run(qiskit_circuits, shots=shots).result().get_counts()
 
     results = [[], []]
 
@@ -128,8 +195,7 @@ def get_gate_sequence(sequence_number, sequence_length, gate_set_length):
     return gate_sequences
 
 
-def get_gate_estimation(gate_set, gate_sequences, gate_set_length, sequence_length,
-                        sequence_results, shots):
+def get_gate_estimation(gate_set, gate_sequences, sequence_results, shots, rK = 4):
     """Estimate quantum gates using a modified Gate Set Tomography (mGST) algorithm.
 
     This function simulates quantum gates, applies noise, and then uses the mGST algorithm
@@ -142,56 +208,46 @@ def get_gate_estimation(gate_set, gate_sequences, gate_set_length, sequence_leng
         The set of quantum gates to be estimated.
     gate_sequences : array_like
         The sequences of gates applied in the quantum circuit.
-    gate_set_length : int
-        The number of gates in the gate set.
-    sequence_length : int
-        The length of each gate sequence.
     sequence_results : array_like
         The results of executing the gate sequences.
     shots : int
         The number of shots (repetitions) for each measurement.
     """
 
-    pdim = 2   # Physical dimension
+    K_target = qiskit_gate_to_operator(gate_set)
+    gate_set_length = len(gate_set)
+    pdim = K_target.shape[-1] # Physical dimension
     r = pdim ** 2   # Matrix dimension of gate superoperators
-    rK = 1   # Rank of the mGST model estimate
-    n_povm = 2   # Number of POVM elements
+    n_povm = pdim   # Number of POVM elements
+    sequence_length = gate_sequences.shape[0]
 
-    K_true = qiskit_gate_to_kraus(gate_set)
-    X_true = np.einsum('ijkl,ijnm -> iknlm', K_true, K_true.conj()).reshape(
-        gate_set_length, r, r)
+    X_target = np.einsum('ijkl,ijnm -> iknlm', K_target, K_target.conj()
+                         ).reshape(gate_set_length, pdim ** 2, pdim ** 2)  # tensor of superoperators
 
-    K_depol = additional_fns.depol(pdim, 0.02)
-    G_depol = np.einsum('jkl,jnm -> knlm', K_depol, K_depol.conj()).reshape(r, r)
-    rho_true = G_depol @ np.array([[1, 0], [0, 0]]).reshape(-1).astype(np.complex128)
+    # Initial state |0>
+    rho_target = np.kron(additional_fns.basis(pdim, 0).T.conj(), additional_fns.basis(pdim, 0)).reshape(-1).astype(np.complex128)
 
-    E1 = np.array([[1, 0], [0, 0]]).reshape(-1)
-    E2 = np.array([[0, 0], [0, 1]]).reshape(-1)
-    E_true = np.array([E1, E2]).astype(np.complex128)   # Full POVM
+    # Computational basis measurement:
+    E_target = np.array(
+        [np.kron(additional_fns.basis(pdim, i).T.conj(), additional_fns.basis(pdim, i)).reshape(-1)
+         for i in range(pdim)]
+    ).astype(np.complex128)
 
-    delta = 0.1  # Unitary noise parameter
+    K_init = additional_fns.perturbed_target_init(X_target, rK)
 
-    # Generate noisy version of true gate set
-    K0 = np.zeros((gate_set_length, rK, pdim, pdim)).astype(np.complex128)
-    for i in range(gate_set_length):
-        U_p = expm(delta * 1j * additional_fns.randHerm(pdim)).astype(np.complex128)
-        K0[i] = np.einsum('jkl,lm', K_true[i], U_p)
-
-    rho0 = additional_fns.randpsd(r).copy()
-    A0 = additional_fns.randKrausSet(1, r, n_povm)[0].conj()
-    E0 = np.array([(A0[i].T.conj() @ A0[i]).reshape(-1) for i in range(n_povm)]).copy()
-
-    bsize = 50  # Batch size for optimization
+    bsize = 30*pdim  # Batch size for optimization
     K, X, E, rho, res_list = algorithm.run_mGST(sequence_results, gate_sequences,
                                                 sequence_length, gate_set_length, r,
                                                 rK, n_povm, bsize, shots,
                                                 method='SFN', max_inits=10,
-                                                max_iter=30, final_iter=10,
-                                                target_rel_prec=1e-4, init=[K0, E0, rho0])
+                                                max_iter=100, final_iter=50,
+                                                target_rel_prec=1e-4, init=[K_init, E_target, rho_target])
 
     # Output the final mean variation error
-    mean_var_error = additional_fns.MVE(X_true, E_true, rho_true, X, E, rho,
+    mean_var_error = additional_fns.MVE(X_target, E_target, rho_target, X, E, rho,
                                         gate_set_length, sequence_length, n_povm)[0]
     print('Mean variation error:', mean_var_error)
     plt.semilogy(res_list)   # plot the objective function over the iterations
     plt.show()
+
+    return K,X,E,rho
