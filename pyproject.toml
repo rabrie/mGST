@@ -16,12 +16,15 @@ classifiers = [
 
 dependencies = [
 	"matplotlib",
-    "numpy",
+    "numpy < 2.0",
+    "cvxpy",
     "scipy",
     "pygsti",
     "tqdm",
     "numba",
-    "cython"
+    "cython",
+    "qiskit",
+    "qiskit-aer"
 ]
 
 [tool.hatch.metadata]
