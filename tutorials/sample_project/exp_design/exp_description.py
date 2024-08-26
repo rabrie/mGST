@@ -1,9 +1,8 @@
 import numpy as np
 from qiskit.circuit.library import IGate, RGate
-from mGST.qiskit_interface import qiskit_gate_to_kraus, add_idle_gates, remove_idle_wires
+from mGST.qiskit_interface import qiskit_gate_to_operator
 from mGST.additional_fns import basis
 from qiskit import QuantumCircuit
-from qiskit import QuantumRegister
 
 
 # The qubits on which GST-experiments are run
@@ -54,7 +53,7 @@ for i in range(d):
     gate_set[i].append(gate_list[i], gate_qubits[i])
 
 # Transforming the single gate circuits to Operators
-K_target = qiskit_gate_to_kraus(gate_set)
+K_target = qiskit_gate_to_operator(gate_set)
 X_target = np.einsum('ijkl,ijnm -> iknlm', K_target, K_target.conj()
                    ).reshape(d, pdim**2, pdim**2)   # tensor of superoperators
 

@@ -254,7 +254,7 @@ def report(X, E, rho, J, y, target_mdl, gate_labels):
     # ], overwrite=False)
     return df_g, df_o#, s_g, s_o
 
-def quick_report(X, E, rho, J, y, target_mdl, gate_labels):
+def quick_report(X, E, rho, J, y, target_mdl, gate_labels = None):
     """ Generation of pandas dataframes with gate and SPAM quality measures
     The quick report is intended to check on a GST estimate with fast to compute measures
     (no diamond distance) to get a first picture and check whether mGST and the gauge optimization
@@ -288,6 +288,10 @@ def quick_report(X, E, rho, J, y, target_mdl, gate_labels):
         s_o : Pandas DataFrame.style object
     """
     pdim = int(np.sqrt(rho.shape[0]))
+    d = X.shape[0]
+    if not gate_labels:
+        gate_labels = {i: 'Gate %i' % i for i in range(d)}
+
     X_t,E_t,rho_t = compatibility.pygsti_model_to_arrays(target_mdl,basis = 'std')
     target_mdl = compatibility.arrays_to_pygsti_model(X_t,E_t,rho_t, basis = 'std') #For consistent gate labels
 
@@ -548,7 +552,7 @@ def generate_gate_err_pdf(filename, gates1, gates2, basis_labels = False, gate_l
     
 def compute_angles_axes(U_set, alternative_phase = False):
     """ Takes the matrix logarithm of the given unitaries and returns the Hamiltonian parameters
-    The parametrization is U = exp(-i \pi H/2), i.e. H = i log(U)*2/pi
+    The parametrization is U = exp(-i pi H/2), i.e. H = i log(U)*2/pi
 
     Parameters
     ----------
@@ -556,7 +560,7 @@ def compute_angles_axes(U_set, alternative_phase = False):
         A list contining unitary matrices
     alternative_phase: bool
         Whether an attempt should be made to report more intuitive rotations,
-        for example a rotation of 3\pi/2 around the -X axis would be turned into
+        for example a rotation of 3 pi/2 around the -X axis would be turned into
         a pi/2 rotation around the X-axis.
     Returns
     -------
@@ -591,9 +595,9 @@ def compute_angles_axes(U_set, alternative_phase = False):
 
 def compute_sparsest_Pauli_Hamiltonian(U_set):
     """ Takes the matrix logarithms of the given unitaries and returns sparsest Hamiltonian parameters in Pauli basis
-    The parametrization is U = exp(-i \pi H/2), i.e. H = i log(U)*2/pi.
+    The parametrization is U = exp(-i pi H/2), i.e. H = i log(U)*2/pi.
     Different branches in the matrix logarithm lead to different Hamiltonians. This function optimizes over
-    combinations of adding 2*\pi to different eigenvalues, in order arrive at the branch with the Hamiltonian
+    combinations of adding 2*pi to different eigenvalues, in order arrive at the branch with the Hamiltonian
     whose Pauli basis representation is the most sparse.
 
 
@@ -1141,7 +1145,8 @@ def job_counts_to_mGST_format(self, result_dict):
     y = np.array(y).T
     return y
 
-def outcome_probs_from_files(folder_name, basis_dict, n_povm,N):
+
+def outcome_probs_from_files(folder_name, basis_dict, n_povm, N):
     """ Searches a specified folder for .txt files containing circuit outcomes and combines the results
     Each text file needs to have line in the following format:
     1: 1,0,1,0,1,1,0,0,0
@@ -1188,13 +1193,14 @@ def outcome_probs_from_files(folder_name, basis_dict, n_povm,N):
                 # translate each measurement result onto basis index
                 for entry in result_list: 
                     j = basis_dict[entry]
-                    y[j,i] += 1
-                sample_counts[k,i] = len(result_list)
+                    y[j, i] += 1
+                sample_counts[k, i] = len(result_list)
                 i += 1
         k += 1
     total_counts = np.sum(sample_counts, axis = 0)
     avg_counts = int(np.average(total_counts))
     return y/total_counts, avg_counts
+
 
 def save_var_latex(key, value):
     """ Saves variables in data file to be read in latex document

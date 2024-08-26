@@ -1,12 +1,11 @@
 import numpy as np
 from qiskit import QuantumCircuit
-from qiskit_aer import Aer
 from qiskit.circuit.library import IGate
 from qiskit.quantum_info import Operator
 import random
-from scipy.linalg import expm
 from mGST import additional_fns, low_level_jit, algorithm
-import matplotlib.pyplot as plt
+from mGST.compatibility import arrays_to_pygsti_model
+from mGST.reporting.reporting import gauge_opt, quick_report
 
 
 def qiskit_gate_to_operator(gate_set):
@@ -33,7 +32,7 @@ def add_idle_gates(gate_set, active_qubits, gate_qubits):
     Each gate in the output gate_set acts on exactly the number of qubits
     on which the GST experiment ist defined. For instance if the GST
     experiment is supposed to be run on qubits [0,1,2], then a X-Gate
-    on the 0-th qubit turns into X \otimes Idle \otimes Idle.
+    on the 0-th qubit turns into X otimes Idle otimes Idle.
     This representation is needed for the internal handling in mGST.
 
     Parameters
@@ -85,7 +84,7 @@ def remove_idle_wires(qc):
     return qc_out
 
 
-def get_qiskit_circuits(gate_sequences, gate_set, n_qubits, active_qubits, measure_active=False):
+def get_qiskit_circuits(gate_sequences, gate_set, n_qubits, active_qubits):
     """
     Generate a set of Qiskit quantum circuits from specified gate sequences.
 
@@ -104,8 +103,6 @@ def get_qiskit_circuits(gate_sequences, gate_set, n_qubits, active_qubits, measu
         The total number of qubits in the system.
     active_qubits : list of int
         The qubits on which the circuits are run.
-    measure_active : bool
-        If set to "True", only the active qubits are measured, otherwise all qubits are measured.
 
 
     Returns
@@ -121,50 +118,9 @@ def get_qiskit_circuits(gate_sequences, gate_set, n_qubits, active_qubits, measu
         for gate_num in gate_sequence:
             qc.compose(gate_set[gate_num], active_qubits, inplace=True)
             qc.barrier(active_qubits)
-        if measure_active:
-            qc.measure(active_qubits, active_qubits)
-        else:
-            qc.measure_all()
+        qc.measure(active_qubits, active_qubits)
         qiskit_circuits.append(qc)
     return qiskit_circuits
-
-
-def simulate_circuit(qiskit_circuits, shots):
-    """Simulate a list of quantum circuits using Qiskit's Aer qasm simulator
-
-    This function takes a list of Qiskit QuantumCircuit objects and simulates each circuit using
-    the specified number of shots. The function collects the simulation results and normalizes them
-    by the total number of shots. The results are returned as a NumPy array.
-
-    Parameters
-    ----------
-    qiskit_circuits : list
-        A list of Qiskit QuantumCircuit objects to be simulated.
-    shots : int
-        The number of shots (repetitions) to use for each circuit simulation.
-
-    Returns
-    -------
-    numpy.ndarray
-        An array of normalized results. Each row in the array corresponds to a quantum circuit
-        in `qiskit_circuits`, and each column corresponds to a possible measurement outcome.
-        Values in the array are normalized by the total number of shots.
-    """
-    simulator = Aer.get_backend("qasm_simulator")
-    sequence_results = simulator.run(qiskit_circuits, shots=shots).result().get_counts()
-
-    results = [[], []]
-
-    for item in sequence_results:
-        try:
-            results[0].append(item['0'] / shots)
-        except KeyError:
-            results[0].append(0.0)
-        try:
-            results[1].append(item['1'] / shots)
-        except KeyError:
-            results[1].append(0.0)
-    return np.array(results)
 
 
 def get_gate_sequence(sequence_number, sequence_length, gate_set_length):
@@ -193,6 +149,45 @@ def get_gate_sequence(sequence_number, sequence_length, gate_set_length):
     gate_sequences = np.array([low_level_jit.local_basis(ind, gate_set_length, sequence_length)
                                for ind in J_rand])
     return gate_sequences
+
+def job_counts_to_mgst_format(active_qubits, n_povm, result_dict):
+    """ Turns the dictionary of outcomes obtained from qiskit backend
+        into the format which is used in mGST
+
+    Parameters
+    ----------
+    active_qubits : list of int
+        The qubits on which the circuits are run.
+    n_povm : int
+        Number of measurement outcomes, n_povm = physical dimension for basis measurements
+    result_dict: (dict of str: int)
+        Dictionary of outcomes from circuits run in a job
+    Returns
+    -------
+    y : numpy array
+        2D array of measurement outcomes for sequences in J;
+        Each column contains the outcome probabilities for a fixed sequence
+
+    """
+    basis_dict_list = []
+    for result in result_dict:
+        # Translate dictionary entries of bitstring on the full system to the decimal representation of bitstrings on the active qubits
+        basis_dict = {entry: int("".join([entry[::-1][i] for i in active_qubits][::-1]), 2) for entry in result}
+        # Sort by index:
+        basis_dict = dict(sorted(basis_dict.items(), key=lambda item: item[1]))
+        basis_dict_list.append(basis_dict)
+    y = []
+    for i in range(len(result_dict)):
+        row = [result_dict[i][key] for key in basis_dict_list[i]]
+        if len(row) < n_povm:
+            missing_entries = list(np.arange(n_povm))
+            for given_entry in basis_dict_list[i].values():
+                missing_entries.remove(given_entry)
+            for missing_entry in missing_entries:
+                row.insert(missing_entry, 0)  # 0 measurement outcomes in not recorded entry
+        y.append(row / np.sum(row))
+    y = np.array(y).T
+    return y
 
 
 def get_gate_estimation(gate_set, gate_sequences, sequence_results, shots, rK = 4):
@@ -232,6 +227,7 @@ def get_gate_estimation(gate_set, gate_sequences, sequence_results, shots, rK = 
         [np.kron(additional_fns.basis(pdim, i).T.conj(), additional_fns.basis(pdim, i)).reshape(-1)
          for i in range(pdim)]
     ).astype(np.complex128)
+    target_mdl = arrays_to_pygsti_model(X_target, E_target, rho_target, basis='std')
 
     K_init = additional_fns.perturbed_target_init(X_target, rK)
 
@@ -247,7 +243,15 @@ def get_gate_estimation(gate_set, gate_sequences, sequence_results, shots, rK = 
     mean_var_error = additional_fns.MVE(X_target, E_target, rho_target, X, E, rho,
                                         gate_set_length, sequence_length, n_povm)[0]
     print('Mean variation error:', mean_var_error)
-    plt.semilogy(res_list)   # plot the objective function over the iterations
-    plt.show()
+    print('Optimizing gauge...')
+    weights = dict({'G%i' % i: 1 for i in range(gate_set_length)}, **{'spam': 1})
+    X_opt, E_opt, rho_opt = gauge_opt(X, E, rho, target_mdl, weights)
+    print('Compressive GST routine complete')
 
-    return K,X,E,rho
+    # Making sense of the outcomes
+    df_g, df_o = quick_report(X_opt, E_opt, rho_opt, gate_sequences, sequence_results, target_mdl)
+    print('First results:')
+    print(df_g.to_string())
+    print(df_o.T.to_string())
+
+    return X_opt, E_opt, rho_opt
