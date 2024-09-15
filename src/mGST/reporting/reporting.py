@@ -1,5 +1,3 @@
-from mGST import compatibility,low_level_jit,additional_fns, algorithm
-
 import csv
 import os
 
@@ -12,7 +10,6 @@ from scipy.optimize import linear_sum_assignment
 from scipy.linalg import logm
 from scipy.optimize import minimize
 from argparse import Namespace
-from random import sample
 
 import pandas as pd
 from pygsti.tools import change_basis
@@ -25,6 +22,7 @@ from pygsti.tools.optools import compute_povm_map
 from qiskit.quantum_info import SuperOp
 from qiskit.quantum_info.operators.measures import diamond_norm
 
+from mGST import compatibility,low_level_jit,additional_fns, algorithm
 
 
 # rcParams.update({'figure.autolayout': True})
