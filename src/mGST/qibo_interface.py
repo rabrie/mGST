@@ -5,9 +5,10 @@ from mGST.compatibility import arrays_to_pygsti_model
 from mGST.reporting.reporting import gauge_opt, quick_report
 
 from qibo import Circuit, gates
+from qibo.backends import _check_backend
 
 
-def qibo_gate_to_operator(gate_set):
+def qibo_gate_to_operator(gate_set, backend=None):
     """Convert a set of Qibo gates to their unitary operators.
 
     This function takes a list of Qibo gate objects and them into operators, 
@@ -24,7 +25,9 @@ def qibo_gate_to_operator(gate_set):
     numpy.ndarray
         An array of process matrices. Each element in the array is a 2D NumPy array.
     """
-    return np.array([[gate.matrix()] for gate in gate_set])
+    backend = _check_backend(backend)
+
+    return backend.cast([[gate.matrix(backend)] for gate in gate_set])
 
 def add_idle_gates(gate_set, active_qubits, gate_qubits):
     """ Add additional idle gates to a gate set
@@ -118,7 +121,9 @@ def get_qibo_circuits(gate_sequences, gate_set, nqubits, active_qubits, **kwargs
     for gate_sequence in gate_sequences:
         qc = Circuit(nqubits, **kwargs)
         for gate_num in gate_sequence:
-            qc.add(gate_set[gate_num](*active_qubits))
+            gate = gate_set[gate_num]
+            gate = gate.on_qubits(dict(zip(gate.qubits, active_qubits)))
+            qc.add(gate)
         qc.add(gates.M(qubit) for qubit in active_qubits)
         circuits.append(qc)
 
@@ -155,6 +160,7 @@ def get_gate_sequence(sequence_number, sequence_length, gate_set_length, seed=No
             for ind in J_rand
         ]
     )
+
     return gate_sequences
 
 def job_counts_to_mgst_format(active_qubits, n_povm, result_dict):
