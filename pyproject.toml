@@ -25,7 +25,7 @@ dependencies = [
     "cython",
     "qiskit",
     "qiskit-aer",
-    "qibo
+    "qibo"
 ]
 
 [tool.hatch.metadata]
