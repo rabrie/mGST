@@ -24,7 +24,8 @@ dependencies = [
     "numba",
     "cython",
     "qiskit",
-    "qiskit-aer"
+    "qiskit-aer",
+    "qibo"
 ]
 
 [tool.hatch.metadata]
