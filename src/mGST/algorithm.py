@@ -10,9 +10,15 @@ from tqdm import tqdm
 from decimal import Decimal
 from mGST.low_level_jit import objf, ddA_derivs, ddB_derivs, dK, dK_dMdM, ddM
 from mGST.additional_fns import transp, random_gs, batch
-from mGST.optimization import (tangent_proj, update_A_geodesic, update_B_geodesic,
-                               update_K_geodesic, lineobjf_A_geodesic,
-                               lineobjf_B_geodesic, lineobjf_isom_geodesic)
+from mGST.optimization import (
+    tangent_proj, 
+    update_A_geodesic, 
+    update_B_geodesic,
+    update_K_geodesic, 
+    lineobjf_A_geodesic,
+    lineobjf_B_geodesic, 
+    lineobjf_isom_geodesic
+)
 
 
 def A_SFN_riem_Hess(K, A, B, y, J, length, d, r, rK, n_povm, lam=1e-3):
