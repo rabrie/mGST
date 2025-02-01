@@ -37,7 +37,7 @@ def randpsd(n, normalized="True"):
     ----------
     n : int
         Number of matrix entries
-    normalized : {Ture, False}, optional
+    normalized : {True, False}, optional
         Controls if the output is trace normalized, defaults to "True"
 
     Returns
@@ -122,7 +122,7 @@ def randHermGS(d, r):
 
     Notes:
         The function randHerm is used to generate random hermitian Choi matrices,
-        whose indies are then rearanged to obtain random hermiticity preserving superoperators.
+        whose indies are then rearranged to obtain random hermiticity preserving superoperators.
     """
     dim = int(np.sqrt(r))
     X = np.zeros((r, d, r), dtype="complex")
